@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistant de Localisation</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+</head>
+<body>
+    <div class="header">
+        <h1>🧭 Assistant de Localisation</h1>
+    </div>
+    
+    <div class="main-container">
+        <!-- Chat à gauche -->
+        <div class="chat-section">
+            <div id="chat-container">
+                <div id="chat-box">
+                    <div class="bot-message">
+                        <strong>Assistant:</strong> Bonjour ! Pour vous localiser, dites-moi d'où vous partez et où vous allez. Par exemple : 'De Paris à Lyon'
+                    </div>
+                </div>
+                
+                <div id="input-container">
+                    <input id="user-input" type="text" placeholder="Tapez votre réponse ici..." />
+                    <button id="send-btn" onclick="sendMessage()">Envoyer</button>
+                    <button id="reset-btn" onclick="resetChat()">Reset</button>
+                </div>
+            </div>
+            
+            <div id="info-panel">
+                <h3>📊 Informations collectées</h3>
+                <div id="collected-info">
+                    <div id="trajet-info">Trajet: <span id="trajet-value">Non défini</span></div>
+                    <div id="transport-info">Transport: <span id="transport-value">Non défini</span></div>
+                    <div id="position-info">Position estimée: <span id="position-value">En cours...</span></div>
+                    <div id="confiance-info">Confiance: <span id="confiance-value">-</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Carte à droite -->
+        <div class="map-section">
+            <div id="map-header">
+                <h2>🗺️ Carte de localisation</h2>
+                <div id="map-status">Carte initialisée - En attente d'informations</div>
+            </div>
+            <div id="map"></div>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <script src="/static/script.js"></script>
+</body>
+</html>

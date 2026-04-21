@@ -3,143 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finder_bot | Assistant de Géolocalisation Intelligent</title>
+    <title>Finder_bot | The Geolocation Orchestration Layer</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <nav>
-        <div class="container nav-container">
-            <div class="logo">🧭 Finder_bot</div>
-            <ul class="nav-links">
-                <li><a href="#features">Fonctionnalités</a></li>
-                <li><a href="#how-it-works">Fonctionnement</a></li>
-                <li><a href="#stack">Technologie</a></li>
-                <li><a href="https://github.com/Abd2k27/Finder_bot" class="btn-github"><i class="fab fa-github"></i> GitHub</a></li>
-            </ul>
-        </div>
-    </nav>
+    
+    <!-- HEADER WRAPPER -> Combines Nav and Hero -->
+    <div class="hero-wrapper">
+        <!-- NAVIGATION -->
+        <nav>
+            <div class="container nav-container">
+                <a href="#" class="logo">
+                    <i class="fa-solid fa-tree logo-icon"></i> FINDER_BOT
+                </a>
+                <ul class="nav-links">
+                    <li><a href="#features">Plateforme</a></li>
+                    <li><a href="#workflow">Spécifications</a></li>
+                    <li><a href="#demo">Démo</a></li>
+                </ul>
+                <div class="nav-actions">
+                    <a href="https://github.com/Abd2k27/Finder_bot" class="btn-nav-filled">Voir Github</a>
+                </div>
+            </div>
+        </nav>
 
-    <header class="hero">
-        <div class="container hero-container">
-            <div class="hero-content">
-                <h1>Retrouvez un accidenté par le <span>dialogue</span>.</h1>
-                <p>Finder_bot est un assistant intelligent qui utilise le traitement du langage naturel et les données géospatiales pour vous localiser avec précision à partir de simples descriptions.</p>
+        <!-- HERO SECTION -->
+        <header class="hero">
+            <div class="container">
+                <div class="hero-tag">
+                    <span class="badge">Nouveau</span> Modèle Local Finder_bot &rarr;
+                </div>
+                <h1>L'intelligence artificielle au service du sauvetage.</h1>
+                <p>Finder_bot orchestre LLM, moteurs de routage et données OpenStreetMap pour transformer le dialogue de détresse en coordonnées extrêmement précises.</p>
                 <div class="hero-btns">
-                    <a href="https://github.com/Abd2k27/Finder_bot" class="btn-primary">Explorer le code</a>
-                    <a href="#how-it-works" class="btn-secondary">En savoir plus</a>
+                    <a href="#features" class="btn-hero-outline">Découvrir l'outil</a>
+                    <a href="#demo" class="btn-hero-filled">Voir l'action</a>
                 </div>
             </div>
-            <div class="hero-image">
-                <img src="Hero-image.png" alt="Interface Finder_bot">
-            </div>
-        </div>
-    </header>
+        </header>
+    </div>
 
-    <section id="features" class="features">
+    <!-- FEATURES SECTION -->
+    <section id="features">
         <div class="container">
-            <h2 class="section-title">Pourquoi Finder_bot ?</h2>
-            <div class="features-grid">
-                <div class="feature-card">
-                    <i class="fas fa-brain"></i>
-                    <h3>Intelligence Agentique</h3>
-                    <p>Propulsé par un LLM (Ollama), le bot comprend vos intentions et décide de la meilleure stratégie de localisation.</p>
+            <div class="section-header">
+                <span>Le Défi Opérationnel</span>
+                <h2>Le SAMU perd un temps vital<br>face aux imprécisions spatiales verbales.</h2>
+            </div>
+            <div class="bento-grid">
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-brain"></i></div>
+                    <h3>Agentic Decision Engine</h3>
+                    <p>Orchestration en temps réel via Ollama (GPT-OSS 120B) pour une analyse sémantique des situations de détresse sans frictions.</p>
                 </div>
-                <div class="feature-card">
-                    <i class="fas fa-map-marked-alt"></i>
-                    <h3>Recalage par Repères</h3>
-                    <p>Dites ce que vous voyez (monuments, commerces, rues) et le bot ajuste instantanément votre position sur la carte.</p>
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-database"></i></div>
+                    <h3>8M POI Engine</h3>
+                    <p>Base SQLite optimisée pour une recherche de repères visuels sans latence, garantie d'une disponibilité immédiate.</p>
                 </div>
-                <div class="feature-card">
-                    <i class="fas fa-route"></i>
-                    <h3>Estimation de Trajet</h3>
-                    <p>À partir de votre point de départ, destination et durée de trajet, Finder_bot calcule mathématiquement votre position actuelle.</p>
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-route"></i></div>
+                    <h3>Multi-Profile Routing</h3>
+                    <p>Moteur OSRM intégré pour des projections de position adaptées au mode de transport (voiture, pied, moto) de la victime.</p>
                 </div>
-                <div class="feature-card">
-                    <i class="fas fa-database"></i>
-                    <h3>Données OpenStreetMap</h3>
-                    <p>Exploitation massive de données réelles via Nominatim, OSRM, Overpass et OSMnx pour une précision maximale.</p>
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-map-pin"></i></div>
+                    <h3>Hybrid Recalage</h3>
+                    <p>Système de "Doubt Removal" validant la position théorique par des repères physiques confirmés dynamiquement.</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <section id="demo" class="demo">
+    <!-- WORKFLOW SECTION -->
+    <section id="workflow" class="bg-offwhite">
         <div class="container">
-            <h2 class="section-title">Démo en action</h2>
-            <div class="video-wrapper">
+            <div class="section-header">
+                <span>Pipeline Architecturale</span>
+                <h2>Une couche d'orchestration unique<br>pour toutes vos décisions d'urgence.</h2>
+            </div>
+            <div class="workflow-steps">
+                <div class="step-card">
+                    <span class="step-number">Step 01</span>
+                    <h3>Orchestration</h3>
+                    <p>Ingestion instantanée du dialogue et extraction des entités spatiales majeures par le moteur NLP dédié.</p>
+                </div>
+                <div class="step-card">
+                    <span class="step-number">Step 02</span>
+                    <h3>Execution</h3>
+                    <p>Calcul de la position probabiliste sur l'infrastructure géométrique en exploitant les nœuds OSRM.</p>
+                </div>
+                <div class="step-card">
+                    <span class="step-number">Step 03</span>
+                    <h3>Control</h3>
+                    <p>Validation visuelle automatisée et recalage final de la position par l'agent de supervision.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- TECH STACK SECTION (Like "Consolidate every process") -->
+    <section id="stack">
+        <div class="container">
+            <div class="section-header">
+                <span>L'écosystème Python</span>
+                <h2>Consolider chaque module informatique<br>dont dépend votre régulation.</h2>
+                <p style="color:var(--text-muted); max-width: 630px; margin: 16px auto 0;">De l'API haute-performance au traitement spatial lourd, l'architecture repose sur des librairies open-source robustes et parfaitement éprouvées.</p>
+            </div>
+            
+            <div class="bento-grid grid-3">
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-server"></i></div>
+                    <h3>API & Serveur Web</h3>
+                    <p>Déploiement haute performance via <strong>fastapi==0.104.1</strong> et <strong>uvicorn[standard]==0.24.0</strong>, avec support <strong>httpx==0.27.0</strong> et <strong>python-multipart==0.0.6</strong>.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-microchip"></i></div>
+                    <h3>Traitement Sémantique (LLM)</h3>
+                    <p>Orchestration d'agents locaux avec <strong>Ollama</strong> pour une compréhension complète et confidentielle du texte de l'appelant.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-location-dot"></i></div>
+                    <h3>Géocodage</h3>
+                    <p>Interrogation des points géographiques via <strong>geopy==2.4.0</strong> et extraction de données OpenStreetMap grâce à <strong>overpy==0.7</strong>.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-map-location-dot"></i></div>
+                    <h3>Réseau Routier Intégré</h3>
+                    <p>Simulation et calcul d'itinéraires avancés avec <strong>osmnx>=1.9.0</strong>, pour tracer précisément les chemins accessibles.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-shapes"></i></div>
+                    <h3>Mathématiques & Topologie</h3>
+                    <p>Analyse des vecteurs géométriques avec <strong>shapely>=2.0.0</strong> et manipulation des data frames pour l'IA via <strong>pandas>=2.0.0</strong>.</p>
+                </div>
+                <div class="card">
+                    <div class="card-icon"><i class="fa-solid fa-database"></i></div>
+                    <h3>Données & Validation</h3>
+                    <p>Base de données <strong>SQLITE</strong> pour un stockage résilient de 8M POI. Structure garantie par <strong>pydantic==2.5.0</strong>, <strong>jinja2==3.1.2</strong> et configuration <strong>python-dotenv>=1.0.0</strong>.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- VIDEO SECTION -->
+    <section id="demo" class="video-section">
+        <div class="container">
+            <div class="video-card">
+                <div class="video-text">
+                    <span class="muted-tag">Démonstration</span>
+                    <h2>Comment Finder_bot standardise l'urgence</h2>
+                    <p>Découvrez comment notre agent analyse en temps réel un appel au SAMU, recoupe les informations géographiques floues, et identifie la position exacte en moins de deux secondes.</p>
+                    <a href="https://github.com/Abd2k27/Finder_bot" class="btn-hero-filled" style="background:var(--primary-blue); box-shadow:none;">Voir le code source</a>
+                </div>
                 <div class="video-container">
-                    <video controls width="100%">
-                        <source src="Demo.mov" type="video/quicktime">
-                        <source src="Demo.mov" type="video/mp4">
-                        Votre navigateur ne supporte pas la lecture de vidéos.
-                    </video>
+                    <video src="Demo.mp4" controls muted playsinline poster="Hero-image.png"></video>
                 </div>
             </div>
         </div>
     </section>
 
-    <section id="how-it-works" class="how-it-works">
+    <!-- BOTTOM CTA -->
+    <section class="bottom-cta">
         <div class="container">
-            <h2 class="section-title">Comment ça marche ?</h2>
-            <div class="steps">
-                <div class="step">
-                    <div class="step-number">1</div>
-                    <div class="step-content">
-                        <h3>Dialogue Naturel</h3>
-                        <p>L'utilisateur décrit sa situation : "Je suis parti de la Tour Eiffel vers le Louvre il y a 10 minutes à pied."</p>
-                    </div>
-                </div>
-                <div class="step">
-                    <div class="step-number">2</div>
-                    <div class="step-content">
-                        <h3>Extraction d'Entités</h3>
-                        <p>Le LLM extrait les points clés : départ, arrivée, mode de transport, durée écoulée.</p>
-                    </div>
-                </div>
-                <div class="step">
-                    <div class="step-number">3</div>
-                    <div class="step-content">
-                        <h3>Calcul & Raffinement</h3>
-                        <p>Le système calcule une position probabiliste et propose des points d'intérêt (POI) proches pour confirmation.</p>
-                    </div>
-                </div>
-                <div class="step">
-                    <div class="step-number">4</div>
-                    <div class="step-content">
-                        <h3>Visualisation</h3>
-                        <p>La position est projetée sur une carte interactive Leaflet avec un tracé d'itinéraire dynamique.</p>
-                    </div>
-                </div>
+            <div class="icon-wrapper">
+                <i class="fa-solid fa-shield-halved"></i>
             </div>
+            <h2>Prêt à optimiser la localisation en régulation ?</h2>
+            <p>Donnez à vos équipes SAMU la sérénité des LLMs sur site.</p>
         </div>
     </section>
 
-    <section id="stack" class="stack">
+    <!-- FOOTER -->
+    <footer>
         <div class="container">
-            <h2 class="section-title">Stack Technique</h2>
-            <div class="stack-grid">
-                <div class="stack-item"><span>FastAPI</span></div>
-                <div class="stack-item"><span>Ollama (LLM)</span></div>
-                <div class="stack-item"><span>OpenStreetMap</span></div>
-                <div class="stack-item"><span>OSRM</span></div>
-                <div class="stack-item"><span>Leaflet.js</span></div>
-                <div class="stack-item"><span>OSMnx</span></div>
-                <div class="stack-item"><span>Python</span></div>
-                <div class="stack-item"><span>Overpass API</span></div>
-            </div>
-        </div>
-    </section>
-
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2026 Finder_bot Project. Développé avec passion pour la géomatique et l'IA.</p>
-            <div class="social-links">
-                <a href="https://github.com/Abd2k27/Finder_bot"><i class="fab fa-github"></i></a>
-            </div>
+            <p>&copy; 2026 Finder_bot. Les données médicales critiques ne sortent jamais de votre infrastructure.</p>
         </div>
     </footer>
 </body>

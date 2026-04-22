@@ -440,6 +440,51 @@ section {
     margin-bottom: 0;
 }
 
+/* ─── REFERENCES SECTION ─── */
+.references-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.references-list {
+    list-style: none;
+    padding: 0;
+}
+
+.references-list li {
+    margin-bottom: 24px;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    padding-left: 16px;
+    border-left: 3px solid var(--primary-blue);
+}
+
+.references-list li strong {
+    color: var(--text-dark);
+    display: block;
+    margin-bottom: 4px;
+}
+
+.references-list li a {
+    color: var(--primary-blue);
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.references-list li a:hover {
+    text-decoration: underline;
+}
+
+.team-credits {
+    margin-top: 48px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 1.1rem;
+    color: var(--text-dark);
+}
+
 /* ─── FOOTER ─── */
 footer {
     padding: 40px 0;

@@ -34,10 +34,10 @@
         <header class="hero">
             <div class="container">
                 <div class="hero-tag">
-                    <span class="badge">Master Data Science en Santé 2026</span> Finder Bot &rarr;
+                    <span class="badge">Innovation 2026</span> Modèle Local Finder Bot &rarr;
                 </div>
                 <h1>L'intelligence spatiale au service du secours d'urgence.</h1>
-                <p>Finder Bot fusionne l'intelligence des LLMs avec la précision déterministe des moteurs de routage et des données souveraines OpenStreetMap. Transformez chaque seconde de dialogue en une position géographique certifiée.</p>
+                <p>Finder Bot fusionne la compréhension sémantique des LLMs avec la rigueur déterministe des moteurs de routage et des données souveraines OpenStreetMap. Transformez chaque seconde de dialogue en une position géographique certifiée.</p>
                 <div class="hero-btns">
                     <a href="#features" class="btn-hero-outline">Explorer l'architecture</a>
                     <a href="#demo" class="btn-hero-filled">Découvrir la démo</a>
@@ -108,7 +108,7 @@
                                 <h3>Modélisation de l'Incertitude</h3>
                             </div>
                             <div class="feature-content">
-                                <p>Calcul de fenêtres de probabilité dynamiques (Point Min/Max) basées sur les vitesses réelles d'infrastructure.</p>
+                                <p>Calcul de fenêtres de probabilité dynamiques basées sur les vitesses réelles d'infrastructure.</p>
                             </div>
                         </div>
 
@@ -157,7 +157,7 @@
                         </div>
                     </div>
 
-                    <!-- Right: Sticky Video Slider -->
+                    <!-- Right: Sticky Video Slider with Browser Frame -->
                     <div class="features-visual-sticky">
                         <div class="browser-bar">
                             <div class="browser-dot"></div>
@@ -167,12 +167,12 @@
                         </div>
                         <div class="video-slider-container">
                             <div class="video-slider" id="videoSlider">
-                                <div class="video-slide"><video src="Demo.mp4" autoplay muted loop playsinline></video></div>
-                                <div class="video-slide"><video src="Demo.mp4" autoplay muted loop playsinline></video></div>
-                                <div class="video-slide"><video src="Demo.mp4" autoplay muted loop playsinline></video></div>
-                                <div class="video-slide"><video src="Demo.mp4" autoplay muted loop playsinline></video></div>
-                                <div class="video-slide"><video src="Demo.mp4" autoplay muted loop playsinline></video></div>
-                                <div class="video-slide"><video src="Demo.mp4" autoplay muted loop playsinline></video></div>
+                                <div class="video-slide"><video src="src/video/min_Intelligence Spacial et RAG.mp4" autoplay muted loop playsinline></video></div>
+                                <div class="video-slide"><video src="src/video/min_Modélisation de l'incertitude.mp4" autoplay muted loop playsinline></video></div>
+                                <div class="video-slide"><video src="src/video/min_Moteur de Données Souverain.mp4" autoplay muted loop playsinline></video></div>
+                                <div class="video-slide"><video src="src/video/min_Recherche Sémantique.mp4" autoplay muted loop playsinline></video></div>
+                                <div class="video-slide"><video src="src/video/min_Raisonnement Déductif.mp4" autoplay muted loop playsinline></video></div>
+                                <div class="video-slide"><video src="src/video/min_Human-in-the-Loop.mp4" autoplay muted loop playsinline></video></div>
                             </div>
                         </div>
                     </div>
@@ -188,8 +188,11 @@
 
             items.forEach((item, index) => {
                 item.addEventListener('click', () => {
+                    // Update Active Class
                     items.forEach(i => i.classList.remove('active'));
                     item.classList.add('active');
+
+                    // Slide Video
                     const offset = index * 100;
                     slider.style.transform = "translateY(-" + offset + "%)";
                 });
@@ -202,8 +205,8 @@
         <div class="container">
             <div class="section-header">
                 <span>Écosystème Technologique</span>
-                <h2>Une pile logicielle éprouvée pour l'urgence.</h2>
-                <p style="color:var(--text-muted); max-width: 630px; margin: 16px auto 0;">L'architecture de Finder Bot repose sur les librairies les plus performantes de l'écosystème Python Spécialisé.</p>
+                <h2>Une pile logicielle spécialisée pour l'urgence.</h2>
+                <p style="color:var(--text-muted); max-width: 630px; margin: 16px auto 0;">Chaque brique logicielle a été choisie pour sa performance et sa robustesse au sein du pipeline Finder Bot.</p>
             </div>
             
             <div class="bento-grid grid-3">
@@ -277,7 +280,7 @@
                     <a href="https://github.com/Abd2k27/Finder_bot" class="btn-hero-filled" style="background:var(--primary-blue); box-shadow:none;">Consulter le Code Source</a>
                 </div>
                 <div class="video-container">
-                    <video src="Demo.mp4" controls muted playsinline poster="Hero-image.png"></video>
+                    <video src="src/video/min_Demo Complet.mp4" controls muted playsinline poster="Hero-image.png"></video>
                 </div>
             </div>
         </div>

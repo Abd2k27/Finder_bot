@@ -374,40 +374,168 @@ section {
     }
 }
 
-/* ─── WORKFLOW STEPS ─── */
-.workflow-steps {
+/* ─── FEATURES INTERACTIVE SHOWCASE (Final Screenshot Match) ─── */
+.features-showcase {
+    background: var(--bg-white);
+    padding: 100px 0;
+}
+
+.features-showcase .container {
+    max-width: 1300px;
+}
+
+.features-outer-box {
+    background: #f8f9fa;
+    border-radius: 32px;
+    padding: 50px;
+    border: 1px solid #f1f3f5;
+}
+
+.features-container {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 32px;
+    grid-template-columns: 35% 65%; /* Proportions from screenshot */
+    gap: 50px;
+    align-items: center;
 }
 
-.step-card {
+/* Left Side: Clean Cards */
+.features-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.feature-item {
     background: transparent;
-    padding: 24px 0;
+    border-radius: 16px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
 }
 
-.step-number {
-    display: inline-block;
+.feature-item.active {
+    background: white;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03);
+}
+
+.feature-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.feature-item .step-number {
     background: var(--light-blue);
     color: var(--primary-blue);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
     font-weight: 700;
-    font-size: 0.8rem;
-    padding: 4px 10px;
-    border-radius: 4px;
-    margin-bottom: 20px;
+    font-size: 0.9rem;
 }
 
-.step-card h3 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 12px;
-    color: var(--text-dark);
+.feature-item h3 {
+    font-size: 1.15rem;
+    font-weight: 500;
+    color: #1a1a1a;
+    margin: 0;
 }
 
-.step-card p {
-    color: var(--text-muted);
+.feature-item .feature-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s ease;
+    opacity: 0;
+}
+
+.feature-item.active .feature-content {
+    max-height: 200px;
+    opacity: 1;
+    margin-top: 15px;
+}
+
+.feature-content p {
+    color: #636b74;
+    font-size: 0.95rem;
     line-height: 1.6;
 }
+
+/* Right Side: Professional Browser Frame */
+.features-visual-sticky {
+    position: sticky;
+    top: 100px;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e9ecef;
+}
+
+.browser-bar {
+    background: #f8f9fa;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    padding: 0 15px;
+    gap: 6px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.browser-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #dee2e6;
+}
+
+.browser-address {
+    background: white;
+    height: 20px;
+    flex-grow: 1;
+    margin: 0 40px;
+    border-radius: 4px;
+    border: 1px solid #edf0f2;
+}
+
+.video-slider-container {
+    width: 100%;
+    aspect-ratio: 16 / 10; /* Match browser window typical ratio */
+    overflow: hidden;
+}
+
+.video-slider {
+    height: 100%;
+    width: 100%;
+    transition: transform 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.video-slide {
+    height: 100%;
+    width: 100%;
+    background: white; /* Matches browser internal color */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.video-slide video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* Full visibility, no cropping */
+    display: block;
+}
+
+@media (max-width: 1100px) {
+    .features-container { grid-template-columns: 1fr; }
+    .features-visual-sticky { position: relative; top: 0; order: -1; }
+}
+
+/* ─── WORKFLOW STEPS (Deprecated) ─── */
+/* Removed as it was replaced by features-showcase */
+/* Removed as it was replaced by features-showcase */
 
 /* ─── CTA FOOTER / BOTTOM BANNER ─── */
 .bottom-cta {

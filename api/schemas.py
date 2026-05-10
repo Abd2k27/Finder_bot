@@ -23,3 +23,27 @@ class ChatResponse(BaseModel):
 class GeocodeRequest(BaseModel):
     """Requête de géocodage"""
     query: str
+
+
+class ContextUpdate(BaseModel):
+    """Mise à jour du contexte via le formulaire ou zone manuelle"""
+    start: Optional[str] = None
+    end: Optional[str] = None
+    transport: Optional[str] = None
+    duration: Optional[int] = None
+    step: int
+    # Champs pour la zone manuelle (dessin ARM)
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    radius: Optional[int] = None
+    type: Optional[str] = None
+
+
+class StateResponse(BaseModel):
+    """Réponse contenant l'état actuel du contexte"""
+    start: Optional[str] = None
+    end: Optional[str] = None
+    transport: Optional[str] = None
+    duration: Optional[int] = None
+    confidence: float
+    position_estimee: Optional[Dict] = None

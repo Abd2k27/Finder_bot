@@ -3,56 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Assistant de Localisation</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <title>Finder Bot - Aide à la Localisation</title>
+    <!-- CSS Leaflet en PREMIER -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <!-- Ton CSS en DERNIER pour pouvoir surcharger -->
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="header">
-        <h1>🧭 Assistant de Localisation</h1>
-    </div>
+    <header class="header">
+        <h1>🔍 Finder Bot</h1>
+        <div id="session-info" style="font-size: 0.9rem; opacity: 0.8;">Interface de Régulation Médicale</div>
+    </header>
     
-    <div class="main-container">
-        <!-- Chat à gauche -->
-        <div class="chat-section">
-            <div id="chat-container">
-                <div id="chat-box">
-                    <div class="bot-message">
-                        <strong>Assistant:</strong> Bonjour ! Pour vous localiser, dites-moi d'où vous partez et où vous allez. Par exemple : 'De Paris à Lyon'
-                    </div>
+    <main class="main-container">
+        <!-- Colonne 1: Formulaire -->
+        <aside class="panel form-section">
+            <div class="panel-header">
+                <h3>📝 Saisie Rapide</h3>
+            </div>
+            <div class="form-body">
+                <div class="form-group">
+                    <label for="form-start">🌍 Ville de départ</label>
+                    <input type="text" id="form-start" placeholder="Ex: Paris">
                 </div>
-                
-                <div id="input-container">
-                    <input id="user-input" type="text" placeholder="Tapez votre réponse ici..." />
-                    <button id="send-btn" onclick="sendMessage()">Envoyer</button>
-                    <button id="reset-btn" onclick="resetChat()">Reset</button>
+                <div class="form-group">
+                    <label for="form-end">🏁 Ville d'arrivée</label>
+                    <input type="text" id="form-end" placeholder="Ex: Lyon">
                 </div>
+                <div class="form-group">
+                    <label for="form-transport">🚗 Mode de transport</label>
+                    <select id="form-transport">
+                        <option value="">-- Choisir --</option>
+                        <option value="voiture">Voiture</option>
+                        <option value="moto">Moto</option>
+                        <option value="bus">Bus</option>
+                        <option value="velo">Vélo</option>
+                        <option value="pied">Piéton</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="form-duration">⏱️ Temps écoulé (min)</label>
+                    <input type="number" id="form-duration" placeholder="Ex: 45">
+                </div>
+                <button id="apply-form-btn" onclick="applyForm()">Appliquer les données</button>
+
+                <div class="info-summary">
+                    <div class="info-item" id="trajet-item">Trajet: <span id="trajet-value">Non défini</span></div>
+                    <div class="info-item" id="transport-item">Transport: <span id="transport-value">Non défini</span></div>
+                    <div class="info-item" id="position-item">Position: <span id="position-value">---</span></div>
+                    <div class="info-item" id="confiance-item">Confiance: <span id="confiance-value">-</span></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Colonne 2: Chat -->
+        <section class="panel chat-section">
+            <div class="panel-header">
+                <h3>💬 Conversation</h3>
+            </div>
+            <div id="chat-box">
+                <div class="message bot-message">
+                    <strong>Finder Bot:</strong> Bonjour ! Pour vous localiser, dites-moi d'où vous partez et où vous allez.
+                </div>
+            </div>
+            <div class="chat-footer">
+                <div class="input-wrapper">
+                    <input id="user-input" type="text" placeholder="Réponse de l'appelant...">
+                    <button id="send-btn" class="btn-icon" onclick="sendMessage()" title="Envoyer">✈️</button>
+                </div>
+                <div class="chat-btns">
+                    <button id="reset-btn" onclick="resetChat()">Réinitialiser</button>
+                    <button id="report-btn" onclick="downloadReport()" title="Télécharger le rapport de session">📋 Rapport</button>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Colonne 3: Carte -->
+        <section class="panel map-section">
+            <div class="panel-header">
+                <h2>🗺️ Localisation</h2>
+                <div id="map-status">Initialisation...</div>
             </div>
             
-            <div id="info-panel">
-                <h3>📊 Informations collectées</h3>
-                <div id="collected-info">
-                    <div id="trajet-info">Trajet: <span id="trajet-value">Non défini</span></div>
-                    <div id="transport-info">Transport: <span id="transport-value">Non défini</span></div>
-                    <div id="position-info">Position estimée: <span id="position-value">En cours...</span></div>
-                    <div id="confiance-info">Confiance: <span id="confiance-value">-</span></div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Carte à droite -->
-        <div class="map-section">
-            <div id="map-header">
-                <h2>🗺️ Carte de localisation</h2>
-                <div id="map-status">Carte initialisée - En attente d'informations</div>
-            </div>
             <div id="map"></div>
+
+            <!-- Barre de recherche flottante -->
+            <div class="map-search-container">
+                <div class="search-input-group">
+                    <input type="text" id="address-search" placeholder="Rechercher une adresse..." autocomplete="off">
+                    <button onclick="searchAddress()" class="btn-search">🔍</button>
+                    <button id="draw-tool-btn" class="btn-tool" onclick="toggleDrawMode()" title="Dessiner une zone d'enquête">⭕ Outil Dessin</button>
+                </div>
+                <div id="autocomplete-results" class="autocomplete-results"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Panneau de contrôle du cercle manuel (injecté ou placé ici) -->
+    <div id="manual-circle-controls" class="floating-controls" style="display: none;">
+        <h4>Zone Manuelle</h4>
+        <div class="controls-btns">
+            <button onclick="toggleManualCircle()" id="btn-toggle-circle">Masquer</button>
+            <button onclick="deleteManualCircle()" class="btn-danger">Supprimer</button>
         </div>
     </div>
     
+    <!-- Scripts JS en fin de body -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    
+    <!-- Modules de l'application -->
+    <script src="/static/js/map_engine.js"></script>
+    <script src="/static/js/chat_engine.js"></script>
+    <script src="/static/js/ui_engine.js"></script>
+    
+    <!-- Point d'entrée principal -->
     <script src="/static/script.js"></script>
 </body>
 </html>

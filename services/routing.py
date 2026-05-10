@@ -11,6 +11,7 @@ import asyncio
 import math
 import httpx
 from typing import Dict, List, Optional, Tuple
+from shapely.geometry import LineString, mapping
 
 
 class RoutingService:
@@ -20,6 +21,46 @@ class RoutingService:
         self.osrm_base_url = "http://router.project-osrm.org/route/v1"
         print("🗺️  Service OSRM initialisé (async)")
     
+    def get_route_buffer(self, geometry_coords: List[List[float]], radius_meters: int = 1000) -> Optional[Dict]:
+        """
+        Crée une zone tampon (buffer) autour de la géométrie de l'itinéraire.
+        
+        Args:
+            geometry_coords: Liste de points [lon, lat]
+            radius_meters: Rayon du buffer en mètres
+            
+        Returns:
+            GeoJSON du polygone de buffer
+        """
+        if not geometry_coords or len(geometry_coords) < 2:
+            return None
+            
+        try:
+            # Créer une ligne Shapely (format lon, lat)
+            line = LineString(geometry_coords)
+            
+            # Conversion approximative degrés -> mètres pour le buffer
+            # On prend la latitude moyenne pour la correction de la longitude
+            avg_lat = sum(p[1] for p in geometry_coords) / len(geometry_coords)
+            lat_factor = 111320 # mètres par degré de latitude
+            lon_factor = 111320 * math.cos(math.radians(avg_lat)) # mètres par degré de longitude
+            
+            # Pour faire un buffer précis en mètres avec Shapely sur du lat/lon,
+            # on devrait normalement projeter en UTM, mais une approximation locale 
+            # suffit pour 1-2km.
+            # On utilise le facteur le plus conservateur ou une moyenne.
+            deg_radius = radius_meters / ((lat_factor + lon_factor) / 2)
+            
+            # Créer le buffer
+            buffer_polygon = line.buffer(deg_radius)
+            
+            # Retourner au format GeoJSON
+            return mapping(buffer_polygon)
+            
+        except Exception as e:
+            print(f"❌ Erreur création buffer: {e}")
+            return None
+
     def _get_osrm_profile(self, transport: str) -> str:
         """
         Retourne le profil OSRM approprié selon le transport
@@ -87,7 +128,8 @@ class RoutingService:
             params = {
                 'overview': 'full',
                 'steps': 'true',
-                'geometries': 'geojson'
+                'geometries': 'geojson',
+                'annotations': 'true'
             }
             
             print(f"🌐 Requête OSRM [{profile}]: {url}")
@@ -134,11 +176,146 @@ class RoutingService:
                 instructions.append(instruction)
                 cumulative_distance += step['distance']
         
+        # Extraire les annotations par segment (vitesses OSRM réelles)
+        segment_annotations = []
+        for leg in route['legs']:
+            annotation = leg.get('annotation', {})
+            speeds = annotation.get('speed', [])
+            distances = annotation.get('distance', [])
+            durations = annotation.get('duration', [])
+            
+            for i in range(len(distances)):
+                segment_annotations.append({
+                    'speed': speeds[i] if i < len(speeds) else 0,      # m/s
+                    'distance': distances[i] if i < len(distances) else 0,  # m
+                    'duration': durations[i] if i < len(durations) else 0   # s
+                })
+        
+        if segment_annotations:
+            avg_speed = sum(s['speed'] for s in segment_annotations) / len(segment_annotations)
+            print(f"📊 Annotations OSRM: {len(segment_annotations)} segments, vitesse moyenne {avg_speed*3.6:.1f} km/h")
+        
         return {
             'total_distance': route['distance'],
             'total_duration': route['duration'],
             'instructions': instructions,
-            'geometry': route['geometry']['coordinates']
+            'geometry': route['geometry']['coordinates'],
+            'segment_annotations': segment_annotations
+        }
+    
+    def find_position_range_on_route(
+        self, route_data: Dict, duration_seconds: float,
+        speed_factor_min: float = 0.6, speed_factor_max: float = 1.2
+    ) -> Optional[Dict]:
+        """
+        Calcule la zone d'incertitude dynamique sur l'itinéraire.
+        
+        Utilise les vitesses OSRM par segment pour estimer:
+        - D_min: distance min parcourue (conducteur lent, × speed_factor_min)
+        - D_max: distance max parcourue (conducteur rapide, × speed_factor_max)
+        
+        Le cercle d'incertitude est centré entre les deux positions extrêmes.
+        """
+        if not route_data or not route_data.get('segment_annotations'):
+            print("⚠️  Pas d'annotations par segment, fallback sur vitesse moyenne")
+            return None
+        
+        annotations = route_data['segment_annotations']
+        total_distance_m = route_data['total_distance']
+        
+        def _calc_distance_for_factor(factor: float) -> float:
+            """Parcourt les segments avec la vitesse × factor et retourne la distance parcourue."""
+            remaining_time = duration_seconds
+            distance_covered = 0.0
+            
+            for seg in annotations:
+                seg_speed = seg['speed'] * factor  # m/s ajustée
+                if seg_speed <= 0:
+                    # Segment à vitesse 0 (arrêt, manœuvre) → on skip
+                    continue
+                time_to_cross = seg['distance'] / seg_speed
+                
+                if remaining_time >= time_to_cross:
+                    distance_covered += seg['distance']
+                    remaining_time -= time_to_cross
+                else:
+                    # Interpolation dans le dernier segment partiellement traversé
+                    distance_covered += seg_speed * remaining_time
+                    remaining_time = 0
+                    break
+            
+            return distance_covered  # Ne pas clamper : permet de dépasser la destination
+        
+        d_min = _calc_distance_for_factor(speed_factor_min)
+        d_max = _calc_distance_for_factor(speed_factor_max)
+        
+        # Spatial Belief Updating: Si des repères dépassés ont restreint les bornes
+        belief_d_min = route_data.get('distance_min')
+        belief_d_max = route_data.get('distance_max')
+        
+        if belief_d_min is not None:
+            d_min = max(d_min, belief_d_min)
+        if belief_d_max is not None:
+            d_max = min(d_max, belief_d_max)
+            
+        # Assurer que d_max >= d_min
+        if d_max < d_min:
+            d_max = d_min + 1000  # Fallback 1km d'incertitude
+            
+        d_center = (d_min + d_max) / 2
+        
+        # Trouver les 3 positions sur la géométrie
+        position_min = self.find_position_on_route(route_data, int(d_min))
+        position_max = self.find_position_on_route(route_data, int(d_max))
+        position_center = self.find_position_on_route(route_data, int(d_center))
+        
+        if not position_center:
+            return None
+        
+        # Rayon = demi-distance géodésique entre position_min et position_max
+        if position_min and position_max:
+            radius = self._haversine_distance(
+                position_min[0], position_min[1],
+                position_max[0], position_max[1]
+            ) / 2
+            # Cap dynamique : plus large quand on dépasse la destination
+            if d_max > total_distance_m:
+                # Au-delà de la destination → cap proportionnel à l'incertitude
+                max_radius = max(15000, (d_max - d_min) / 2)
+            else:
+                max_radius = 15000
+            radius = max(500, min(radius, max_radius))
+        else:
+            radius = 2000  # Fallback
+        
+        progress_min = d_min / total_distance_m
+        progress_max = d_max / total_distance_m
+        progress_center = d_center / total_distance_m
+        
+        print(f"\n{'='*60}")
+        print(f"📐 ZONE D'INCERTITUDE DYNAMIQUE")
+        print(f"{'='*60}")
+        print(f"   Durée: {duration_seconds/60:.1f} min")
+        print(f"   D_min (×{speed_factor_min}): {d_min/1000:.1f} km ({progress_min*100:.1f}%)")
+        print(f"   D_max (×{speed_factor_max}): {d_max/1000:.1f} km ({progress_max*100:.1f}%)")
+        print(f"   D_centre: {d_center/1000:.1f} km ({progress_center*100:.1f}%)")
+        print(f"   Rayon dynamique: {radius:.0f} m")
+        print(f"   Position min: {position_min}")
+        print(f"   Position max: {position_max}")
+        print(f"   Position centre: {position_center}")
+        print(f"{'='*60}\n")
+        
+        return {
+            'd_min': int(d_min),
+            'd_max': int(d_max),
+            'd_center': int(d_center),
+            'position_min': position_min,
+            'position_max': position_max,
+            'position_center': position_center,
+            'radius': int(radius),
+            'progress_min': progress_min,
+            'progress_max': progress_max,
+            'progress_center': progress_center
         }
     
     def find_position_on_route(self, route_data: Dict, distance_meters: int) -> Optional[Tuple[float, float]]:
@@ -161,9 +338,29 @@ class RoutingService:
         print(f"Points de géométrie: {len(geometry)}")
         
         if distance_meters >= total_distance:
-            print(f"⚠️  Distance demandée ≥ distance totale → retour destination")
+            # Extrapoler au-delà de la destination en prolongeant la direction du dernier segment
+            extra_distance = distance_meters - total_distance
+            if len(geometry) >= 2:
+                import math
+                last = geometry[-1]  # [lon, lat]
+                prev = geometry[-2]
+                # Direction du dernier segment (en degrés)
+                dlat = last[1] - prev[1]
+                dlon = last[0] - prev[0]
+                seg_len = self._haversine_distance(prev[1], prev[0], last[1], last[0])
+                if seg_len > 0:
+                    # Extrapoler proportionnellement
+                    ratio = extra_distance / seg_len
+                    ext_lat = last[1] + dlat * ratio
+                    ext_lon = last[0] + dlon * ratio
+                    coords = (ext_lat, ext_lon)
+                    print(f"🔮 Position extrapolée au-delà de la destination (+{extra_distance:.0f}m)")
+                    print(f"   Coordonnées: {coords[0]:.4f}°N, {coords[1]:.4f}°E")
+                    return coords
+            # Fallback : dernier point
             last_point = geometry[-1]
             coords = (last_point[1], last_point[0])
+            print(f"⚠️  Distance demandée ≥ distance totale → retour destination")
             print(f"🏁 Destination: {coords[0]:.4f}°N, {coords[1]:.4f}°E")
             return coords
         

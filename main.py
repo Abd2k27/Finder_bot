@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Bot de localisation pour personnes perdues en France
-Utilise Ollama/Gemma pour l'extraction d'entités et les APIs OpenStreetMap pour la géolocalisation
+Utilise Ollama/gpt-oss 120b pour l'extraction d'entités et les APIs OpenStreetMap pour la géolocalisation
 """
 
 from contextlib import asynccontextmanager

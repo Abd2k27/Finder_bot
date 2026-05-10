@@ -162,21 +162,27 @@ RÈGLES:
         manual_fin = None
         
         # Pattern amélioré: supporte "Aix en Provence", "Saint-Étienne", etc.
-        # Autorise espaces et tirets dans les noms de ville
-        city_pattern = r'(?:de|depuis)\s+([A-Za-zÀ-ÿ\-]+(?: [A-Za-zÀ-ÿ\-]+)*)\s+(?:à|vers|pour)\s+([A-Za-zÀ-ÿ\-]+(?: [A-Za-zÀ-ÿ\-]+)*)'
+        # On exige un 'De' ou 'Depuis' clair au début pour éviter de confondre avec une description
+        city_pattern = r'^(?:je pars de|parti de|depuis|de)\s+([A-Za-zÀ-ÿ\-]+(?: [A-Za-zÀ-ÿ\-]+)*)\s+(?:à|vers|pour|en direction de)\s+([A-Za-zÀ-ÿ\-]+(?: [A-Za-zÀ-ÿ\-]+)*)'
         city_match = re.search(city_pattern, text, re.IGNORECASE)
         if city_match:
             manual_depart = city_match.group(1).strip().title()
             manual_fin = city_match.group(2).strip().title()
             print(f"  🏙️ Regex détecté: {manual_depart} → {manual_fin}")
         else:
-            # Pattern alternatif sans préposition
-            city_pattern2 = r'^([A-Za-zÀ-ÿ\-]+(?: [A-Za-zÀ-ÿ\-]+)*)\s+(?:vers|à|pour)\s+([A-Za-zÀ-ÿ\-]+(?: [A-Za-zÀ-ÿ\-]+)*)'
+            # Pattern alternatif sans préposition — limité à 1-3 mots pour éviter les faux positifs
+            city_pattern2 = r'^([A-Za-zÀ-ÿ\-]{2,}(?:\s[A-Za-zÀ-ÿ\-]+){0,2})\s+(?:vers|pour)\s+([A-Za-zÀ-ÿ\-]{2,}(?:\s[A-Za-zÀ-ÿ\-]+){0,2})\s*$'
             city_match2 = re.search(city_pattern2, text, re.IGNORECASE)
+            # Mots qui ne sont PAS des villes → rejeter le match
+            non_city_words = {'il', 'je', 'un', 'une', 'le', 'la', 'les', 'des', 'du', 'au', 'y', 'a', 'est', 'vois', 'suis'}
             if city_match2:
-                manual_depart = city_match2.group(1).strip().title()
-                manual_fin = city_match2.group(2).strip().title()
-                print(f"  🏙️ Regex détecté: {manual_depart} → {manual_fin}")
+                dep = city_match2.group(1).strip().lower()
+                arr = city_match2.group(2).strip().lower()
+                first_word_dep = dep.split()[0] if dep else ''
+                if first_word_dep not in non_city_words and len(dep) > 2:
+                    manual_depart = city_match2.group(1).strip().title()
+                    manual_fin = city_match2.group(2).strip().title()
+                    print(f"  🏙️ Regex détecté: {manual_depart} → {manual_fin}")
         
         # Bypass LLM pour messages courts
         if len(text.strip()) < 5:
@@ -191,7 +197,8 @@ RÈGLES:
                 'transport': existing_transport,
                 'duree': manual_duration,
                 'distance': None,
-                'reperes': []
+                'reperes': [],
+                'reperes_depasses': []
             }
         
         # Extraction LLM
@@ -202,16 +209,17 @@ MESSAGE: "{text}"
 Format JSON:
 {{
   "depart": null, "fin": null, "transport": null, "duree": null,
-  "distance": null, "lieux": [], "routes": [], "reperes": []
+  "distance": null, "lieux": [], "routes": [], "reperes": [], "reperes_depasses": []
 }}
 
 RÈGLES CRITIQUES:
-1. "reperes": Extrais TOUS les noms propres ou enseignes (ex: garage, McDo, Super U).
-2. "routes": UNIQUEMENT si un numéro de route est ÉCRIT dans le message.
-3. Si une info est absente, utilise null ou [].
-4. TRANSPORTS: voiture, bus, pied, moto, velo.
-5. Chaque champ liste doit être un tableau [], pas une chaîne.
-6. Si l'utilisateur fait une faute d'orthographe visible sur un nom de lieu ou commerce, corrige-la avant de l'extraire dans "reperes".
+1. "reperes": Extrais TOUS les points de repère que l'appelant voit actuellement (ex: "Je vois un garage").
+2. "reperes_depasses": Extrais TOUS les repères que l'appelant dit avoir DÉJÀ DÉPASSÉ (ex: "J'ai passé un pont", "je viens de dépasser l'arrêt de bus"). S'il dit "J'ai passé X", mets "X" dans cette liste, pas dans "reperes".
+3. "routes": UNIQUEMENT si un numéro de route est ÉCRIT dans le message (ex: "N12", "D906").
+4. Si une info est absente, utilise null ou [].
+5. TRANSPORTS: voiture, bus, pied, moto, velo.
+6. Chaque champ liste doit être un tableau [], pas une chaîne.
+7. Corrige les fautes d'orthographe visibles avant d'extraire.
 """
         
         extracted = await self._call_ollama(extraction_prompt, use_json=True)
@@ -228,7 +236,8 @@ RÈGLES CRITIQUES:
                 'transport': existing_transport,
                 'duree': manual_duration,
                 'distance': None,
-                'reperes': []
+                'reperes': [],
+                'reperes_depasses': []
             }
         
         # Normalisation
@@ -240,9 +249,10 @@ RÈGLES CRITIQUES:
             'depart': extracted.get('depart'),
             'fin': extracted.get('fin'),
             'transport': extracted.get('transport'),
-            'duree': extracted.get('duree'),
+            'duree': extracted.get('duree') or manual_duration,
             'distance': extracted.get('distance'),
-            'reperes': extracted.get('reperes', []) or []
+            'reperes': extracted.get('reperes', []) or [],
+            'reperes_depasses': extracted.get('reperes_depasses', []) or []
         }
         
         # Sécurisation: convertir strings en listes
@@ -345,19 +355,6 @@ RÈGLES CRITIQUES:
     async def decide_action(self, user_message: str, state_dict: Dict) -> Dict:
         """
         Prompting Agentique: Le LLM décide de la prochaine action conversationnelle.
-        
-        Args:
-            user_message: Message de l'utilisateur
-            state_dict: État complet de la conversation (ChatState.to_dict())
-        
-        Returns:
-            {
-                "action": "continue|finish|clarify|recalage|confirm_choice",
-                "response": "Message à afficher à l'utilisateur",
-                "extract_entities": bool,
-                "poi_index": int (si action=confirm_choice),
-                "reason": "Explication de la décision"
-            }
         """
         import json
         import re
@@ -378,38 +375,42 @@ RÈGLES CRITIQUES:
             "transport": state_dict.get("context", {}).get("transport"),
             "depart": state_dict.get("context", {}).get("start"),
             "arrivee": state_dict.get("context", {}).get("end"),
+            "historique_disponible": state_dict.get("history_size", 0) > 1
         }
         
         # Nombre de POI dans la liste actuelle
         nb_poi_liste = len(context_summary.get("liste_poi_actuelle", []))
         
-        prompt = f"""Tu es un assistant de localisation pour personnes perdues. Tu dois décider la prochaine action.
+        prompt = f"""Tu es un assistant de localisation. Tu dois décider la prochaine action.
 
 ÉTAT CONVERSATION:
-- Trajet défini: {context_summary['trajet_defini']} ({context_summary['depart']} → {context_summary['arrivee']})
-- Position trouvée: {context_summary['position_trouvee']} (confiance: {context_summary['confiance']:.0%})
-- Recalage effectué: {context_summary['recalage_fait']}
-- En attente de choix POI: {context_summary['attente_choix_poi']} ({nb_poi_liste} POI proposés)
-- En attente de description: {context_summary['attente_description']}
+- Trajet: {context_summary['depart']} → {context_summary['arrivee']}
+- En attente de choix parmi {nb_poi_liste} POI: {context_summary['attente_choix_poi']}
+- Historique de recherche disponible: {context_summary['historique_disponible']}
 
 MESSAGE UTILISATEUR: "{user_message}"
 
-ACTIONS POSSIBLES:
-- "finish": L'utilisateur termine (merci, ok, c'est bon, au revoir, parfait) → répondre poliment
-- "recalage": L'utilisateur décrit un lieu/commerce/panneau → chercher pour recaler position
-- "confirm_choice": L'utilisateur répond par un numéro (1-{nb_poi_liste}) ou nom de POI → sélectionner ce POI
-- "clarify": L'utilisateur pose une question ou est confus → expliquer
-- "continue": L'utilisateur donne des infos utiles (durée, trajet) → continuer extraction normale
-- "reject_pois": L'utilisateur dit "aucun", "rien", "pas ceux-là" → demander description libre
-- "show_all_pois": L'utilisateur demande à voir tous les POI/points, la carte, ou la zone → afficher tous les POI sur la carte
+RÈGLES DE DÉCISION:
+1. "ignore_previous_candidates": true si l'utilisateur rejette les points proposés (ex: "aucun", "pas ça", "rien") même s'il donne un nouvel indice après.
+2. "target_keyword": Si l'utilisateur veut revenir à une étape précise, extrais le nom du lieu demandé (ex: "Carrefour", "cabinet", "boulangerie").
+3. "action": 
+   - "finish": remerciements ou fin.
+   - "show_previous_list": l'utilisateur veut revenir en arrière ou réafficher une recherche passée (ex: "reviens aux Carrefour").
+   - "show_all_pois": demande d'affichage global/cercle.
+   - "confirm_choice": choix d'un numéro ou nom de la liste.
+   - "recalage": description d'un lieu précis.
+   - "reject_pois": refus simple.
+   - "continue": infos de trajet/temps.
 
-Réponds UNIQUEMENT en JSON valide:
+Réponds UNIQUEMENT en JSON:
 {{
-    "action": "finish|recalage|confirm_choice|clarify|continue|reject_pois|show_all_pois",
-    "response": "Message naturel à afficher",
+    "action": "finish|recalage|confirm_choice|clarify|continue|reject_pois|show_all_pois|show_previous_list",
+    "ignore_previous_candidates": boolean,
+    "target_keyword": "nom du lieu à retrouver ou null",
+    "response": "Message court",
     "extract_entities": true ou false,
-    "poi_index": null ou numéro 1-{nb_poi_liste},
-    "reason": "Explication courte"
+    "poi_index": numéro ou null,
+    "reason": "Explication"
 }}
 """
 
@@ -418,7 +419,7 @@ Réponds UNIQUEMENT en JSON valide:
             "prompt": prompt,
             "stream": False,
             "format": "json",
-            "system": "Tu es un agent décisionnel. Réponds uniquement en JSON valide."
+            "system": "Tu es un agent décisionnel strict. Tu comprends les intentions derrière les fautes de frappe."
         }
         
         headers = {"Content-Type": "application/json"}

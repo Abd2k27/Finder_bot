@@ -1,9 +1,14 @@
 # Configuration et constantes du projet
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 # Charger les variables d'environnement depuis .env
 load_dotenv()
+# Charger aussi depuis le dossier parent si présent
+parent_env = Path(__file__).parent.parent.parent / ".env"
+if parent_env.exists():
+    load_dotenv(parent_env)
 
 # Questions hiérarchiques posées progressivement à l'utilisateur
 QUESTIONS = [
@@ -22,7 +27,12 @@ NER_CONFIDENCE_THRESHOLD = 0.7  # Gardé pour compatibilité
 
 # Configuration Ollama Cloud (LLM pour extraction d'entités)
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:120b-cloud")
-OLLAMA_URL = os.getenv("OLLAMA_URL", "https://ollama.com/api/generate")
+# Correction de l'URL Ollama par défaut (localhost au lieu de ollama.com)
+OLLAMA_URL = os.getenv("OLLAMA_URL", os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/api/generate"))
+if not OLLAMA_URL.endswith("/api/generate") and not OLLAMA_URL.endswith("/api/chat"):
+    # Si c'est juste l'hôte, on ajoute le endpoint par défaut
+    OLLAMA_URL = OLLAMA_URL.rstrip("/") + "/api/generate"
+
 OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
 

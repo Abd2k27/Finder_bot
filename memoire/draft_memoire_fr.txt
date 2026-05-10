@@ -1,0 +1,627 @@
+﻿Abdou DOSSOU
+Dylan PIN
+
+
+
+
+Application d’aide à la géolocalisation des victimes pour les assistants de régulation médicale lors des appels au service d'aide médicale d'urgence
+Superviseur : Djamel ZITOUNI
+Co-superviseur : Hervé COADOU
+
+
+
+
+
+
+Finder Bot — Module pour le Registre HéliSMUR
+En partenariat avec le CHU de Lille 
+Master Data Science en Santé - Année académique 2025 – 2026
+
+
+
+
+
+
+
+
+Composition du Jury : 
+
+
+Djamel ZITOUNI – Enseignant chercheur UFR3S, université de Lille
+Hervé COADOU – Praticien hospitalier en médecine d’urgence, SAMU 59
+
+
+
+
+
+
+Date de soutenance : X Juillet 2026
+________________
+ABSTRACT
+In pre-hospital emergencies, the rapid and accurate geolocation of a victim is vital, particularly for the deployment of helicopter emergency medical services (HéliSMUR). When automatic location signals (GPS, AML) fail or are unavailable, the emergency medical dispatcher (ARM) must deduce the position based on the caller's approximate verbal descriptions. This master's thesis presents the development and evaluation of *Finder Bot*, an intelligent assistant designed to automate this spatial resolution. Based on a hybrid architecture, the system uses a Large Language Model (LLM) as a semantic extraction agent, coupled with a sovereign local geospatial database (OpenStreetMap) and a routing engine (OSRM). The main innovation lies in the integration of Applied Search Theory through a *Spatial Belief Updating* mechanism, modeling geographical uncertainty as a dynamic probability window. Evaluated on five simulation scenarios covering various environments (urban, highway, rural), the system demonstrates an ability to filter semantic noise (*Massive Mapping*, *Keyword Stripping*, *Fuzzy Search*) and achieve near-centimetric accuracy (8 to 25 meters). By drastically reducing the dispatcher's cognitive load, *Finder Bot* validates the relevance of Spatial Retrieval-Augmented Generation (Spatial RAG) as a critical decision support tool in emergency telemedicine.
+
+
+Keywords:  Geolocation, Natural Language Processing (NLP), Emergency Medical Services (EMS), Spatial RAG, OpenStreetMap.
+
+
+RÉSUMÉ
+En urgence préhospitalière, la géolocalisation rapide et précise d'une victime est vitale, particulièrement pour l'engagement des secours héliportés (HéliSMUR). Lorsque les signaux de localisation automatiques (GPS, AML) échouent ou sont inexploitables, l'Assistant de Régulation Médicale (ARM) du SAMU doit déduire la position à partir des descriptions verbales approximatives de l'appelant. Ce mémoire présente le développement et l'évaluation de *Finder Bot*, un assistant intelligent conçu pour automatiser cette résolution spatiale. S'appuyant sur une architecture hybride, le système utilise un Grand Modèle de Langage (LLM) comme agent d'extraction sémantique, couplé à une base de données géospatiale locale souveraine (OpenStreetMap) et un moteur de routage (OSRM). L'innovation principale réside dans l'intégration de la théorie de la recherche appliquée (*Applied Search Theory*) via un mécanisme de *Spatial Belief Updating*, modélisant l'incertitude géographique comme une fenêtre de probabilité dynamique et asymétrique. Évalué sur cinq scénarios de simulation couvrant divers environnements (urbain, autoroutier, rural), le système démontre une capacité à filtrer le bruit sémantique (*Massive Mapping*, *Keyword Stripping*, *Fuzzy Search*) pour atteindre une précision quasi-centimétrique (erreur de 8 à 25 mètres). En réduisant drastiquement la charge cognitive de l'opérateur, *Finder Bot* valide la pertinence du Raisonnement Spatial Assisté par la Génération (*Spatial RAG*) comme outil d'aide à la décision critique en régulation d'urgence.
+
+
+Mots-clés: Géolocalisation, Traitement du Langage Naturel (NLP), Services Médicaux d'Urgence (SAMU), RAG Spatial, OpenStreetMap.
+SOMMAIRE
+ABSTRACT        2
+RÉSUMÉ        2
+SOMMAIRE        3
+GLOSSAIRE        4
+INTRODUCTION        6
+MATÉRIEL ET MÉTHODES        8
+RÉSULTATS        16
+DISCUSSION        24
+CONCLUSION        26
+BIBLIOGRAPHIE        28
+ANNEXES        30
+TABLE DES MATIÈRES        31
+
+
+
+
+________________
+
+
+GLOSSAIRE
+Sigle
+	Définition
+	AML
+	Advanced Mobile Location — standard européen de géolocalisation automatique transmettant la position d'un téléphone lors d'un appel d'urgence
+	API
+	Application Programming Interface — interface de programmation permettant la communication entre deux systèmes logiciels
+	ARM
+	Assistant de Régulation Médicale — opérateur du SAMU chargé de la réception et du traitement des appels d'urgence
+	CHU
+	Centre Hospitalier Universitaire
+	F-score
+	Mesure harmonique de la précision et du rappel, utilisée pour évaluer les performances des modèles de classification
+	FastAPI
+	Framework Python asynchrone pour le développement d'API web
+	GeoJSON
+	Format ouvert d'encodage de données géographiques basé sur la notation JSON
+	GPS
+	Global Positioning System — système de positionnement par satellite
+	HéliSMUR
+	SMUR Héliporté — équipe médicale d'urgence déployée par hélicoptère
+	IHM
+	Interface Homme-Machine
+	IETF
+	Internet Engineering Task Force — organisme de normalisation des protocoles Internet
+	IPP
+	Initial Planning Point — point de départ pour la planification d'une mission SAR
+	ISRID
+	International Search and Rescue Incident Database — base de données internationale sur les incidents de recherche et secours
+	LLM
+	Large Language Model — Grand Modèle de Langage
+	NER
+	Named Entity Recognition — Reconnaissance d'Entités Nommées
+	NG112
+	Next Generation 112 — infrastructure européenne de nouvelle génération pour les appels d'urgence
+	NLP / TAL
+	Natural Language Processing / Traitement Automatique du Langage
+	OSM
+	OpenStreetMap — base de données cartographique collaborative et libre
+	OSRM
+	Open Source Routing Machine — moteur de calcul d'itinéraires open source
+	PBF
+	Protocolbuffer Binary Format — format binaire compressé utilisé pour les données OpenStreetMap
+	PIDF-LO
+	Presence Information Data Format Location Object — format XML standardisé pour la transmission de données de localisation
+	POA
+	Probability of Area — Probabilité de Zone, concept issu de la doctrine SAR
+	POI
+	Point d'Interest — Point d'Intérêt géographique
+	RAG
+	Retrieval-Augmented Generation — architecture couplant un LLM à une base de données externe pour ancrer la génération sur des faits vérifiables
+	RFC
+	Request for Comments — document de normalisation publié par l'IETF
+	RFC 7459
+	Norme IETF standardisant la représentation de l'incertitude associée à une information de localisation
+	RGPD
+	Règlement Général sur la Protection des Données — règlement européen 2016/679
+	SAMU
+	Service d'Aide Médicale d'Urgence
+	SAR
+	Search and Rescue — Recherche et Secours
+	SMUR
+	Service Mobile d'Urgence et de Réanimation
+	SQL / SQLite
+	Structured Query Language / moteur de base de données relationnel léger et embarqué
+	WAL
+	Write-Ahead Logging — mode d'écriture de SQLite permettant les lectures concurrentes sans blocage
+	________________
+
+
+INTRODUCTION
+1.1. Nécessité d'une assistance à la géolocalisation lors des appels au SAMU
+Le système d'urgence préhospitalière français repose sur le SAMU pour la régulation médicale et le SMUR pour les interventions primaires. Les équipes HéliSMUR interviennent dans les situations critiques ou en zones d'accès difficile. Le défi majeur pour les ARM (Assistants de Régulation Médicale) demeure la localisation précise des victimes : les appelants, souvent paniqués, fournissent des descriptions approximatives, et les technologies AML (Advanced Mobile Location), bien que pertinentes, présentent des limites structurelles significatives. Une localisation inexacte peut retarder l'arrivée des secours avec des conséquences potentiellement létales.
+1.2. Enjeux cliniques et opérationnels
+En urgence vitale, le recueil de la localisation conditionne directement le délai de mise en route des moyens. Le cas de Simon Gautier, randonneur décédé en 2019 dans une zone non identifiable, illustre ces enjeux. Les organismes de formation estiment qu'environ un appel sur dix est difficilement localisable. Le rapport européen ayant motivé la Directive 2018/1972 [2] souligne que le déploiement d'une géolocalisation automatisée permettrait d'éviter des milliers de décès annuels [1].
+1.3. Limites de l'Advanced Mobile Location (AML)
+L'AML, standard européen déployé en France depuis fin 2022 [3, 4], transmet automatiquement la position du téléphone avec une précision revendiquée d'environ dix mètres en conditions optimales. Cependant, elle exige un smartphone actif et connecté, et la condition de colocalisation appelant-victime est fréquemment non remplie lors des appels de tiers-témoins. Sa précision se dégrade également en zone blanche, en intérieur ou en montagne. Ce mémoire se positionne explicitement en complément de l'AML, ciblant les cas où le signal fait défaut ou doit être resserré par la description verbale.
+1.4. Geoparsing et extraction de toponymes
+L'extraction d'une position à partir de descriptions verbales relève du geoparsing, à l'intersection du TAL et des sciences de l'information géographique [6]. Le processus associe reconnaissance de toponymes (toponym recognition) et résolution spatiale via un référentiel de type OpenStreetMap [7, 8]. Les performances de l'état de l'art restent modestes sur corpus réels (F-score < 0,8), et la difficulté est accrue pour les textes courts, bruités et informels issus de transcriptions vocales d'urgence [9]. Un ciblage fin des POI locaux demeure sous-traité par les méthodes existantes, centrées sur les toponymes administratifs.
+1.5. Apports et limites des LLM pour les tâches géospatiales
+Les grands modèles de langage ont transformé le geoparsing grâce à leur connaissance implicite des entités géographiques, permettant une résolution en zero-shot [11]. Des méthodes comme GeoLLM [11] et LAMP [12] atteignent des performances comparables aux modèles basés sur l'imagerie satellite. Cependant, les LLM hallucinent des rues inexistantes et estiment mal les distances. La solution dominante est le RAG spatial [13, 14] : ancrer la génération du LLM sur une base géographique externe fiable récupérée dynamiquement, ce qui améliore significativement la résolution de descriptions non-standard en contexte de crise.
+1.6. Doctrine SAR et score de confiance
+L'interprétation probabiliste de la position s'inscrit dans la doctrine Search-and-Rescue. Les travaux de Koester [15] sur le comportement des personnes perdues (ISRID) établissent des distributions statistiques exploitées par les cellules SAR sous forme de probability maps. Des études plus récentes [16, 17] affinent ces modèles comportementaux. Sur le plan normatif, la RFC 7459 [5] standardise la représentation de l'incertitude associée à une information de localisation. Ces deux apports — modèle comportemental SAR et standard IETF — constituent la base conceptuelle du score de confiance de Finder Bot.
+1.7. Problématique et objectifs
+Ce mémoire se situe à la croisée de quatre champs : régulation médicale d'urgence, geoparsing, LLM/RAG géospatial et doctrine SAR. Dans quelle mesure une approche hybride combinant un LLM agentique, un RAG spatial ancré sur OpenStreetMap et une interface dédiée à l'ARM peut-elle assister la géolocalisation de victimes lorsque les technologies de signal sont inopérantes ?
+Cette question se décline en trois axes : extraction fiable d'entités géographiques à partir de descriptions verbales ; résolution spatiale par croisement avec une base locale en tenant compte de la géométrie du trajet ; construction d'un score de confiance conforme à la RFC 7459 et informé de la littérature SAR. Les objectifs opérationnels sont : concevoir et documenter le prototype Finder Bot ; définir un protocole d'évaluation sur cas-types urbains, péri-urbains et ruraux ; et positionner la solution par rapport à l'écosystème AML/HéliSMUR.
+
+
+
+
+AJOUT IMAGE_TO_LOC
+REF
+https://arxiv.org/pdf/2408.09474
+https://arxiv.org/pdf/2407.14910
+https://github.com/lingli1996/GLOBE/blob/main/README.md
+
+________________
+MATÉRIEL ET MÉTHODES
+2.1. Ancrage conceptuel : de la problématique aux piliers théoriques
+
+
+La problématique de ce mémoire — géolocaliser une victime à partir d'une description verbale, en l'absence de signal automatique fiable — se situe à l'intersection de trois champs de recherche distincts dont les avancées récentes ont directement guidé les choix de conception du système Finder Bot. Chaque pilier de l'architecture répond à un verrou scientifique identifié dans la littérature.
+
+
+Le premier verrou est celui de l'extraction d'information géographique à partir de texte libre. Les travaux sur le geoparsing montrent que les LLM seuls, sans ancrage sur une base de données géographique externe, produisent des résultats peu fiables : ils hallucinent des adresses, confondent des homonymes toponymiques et restituent des distances erronées. La solution qui s'impose est le couplage LLM-RAG : le modèle de langage n'est plus un oracle géographique mais un extracteur d'entités, tandis que la résolution spatiale est confiée à un moteur de recherche déterministe ancré sur une base de connaissances locale.
+
+
+Le second verrou est celui de la désambiguïsation toponymique en contexte routier. Un même repère — une pharmacie, un Carrefour, une église — peut exister en dizaines d'exemplaires le long d'un itinéraire. Les approches classiques de geoparsing ne disposent pas de mécanisme pour discriminer entre ces candidats. Des travaux récents ont montré que l'exploitation de la topologie du réseau routier comme contrainte qualitative — en restreignant l'espace de recherche aux seuls éléments topologiquement accessibles sur le trajet emprunté — permet de lever cette ambiguïté [13].
+
+
+Le troisième verrou est d'ordre opérationnel et emprunté à la doctrine Search and Rescue (SAR) : comment formaliser l'incertitude sur la position d'un sujet en mouvement ? La théorie de la recherche appliquée (Applied Search Theory) introduit la notion de zone de probabilité construite non sur un point unique mais sur une fenêtre délimitée par les profils de déplacement extrêmes du sujet — lent et rapide — pondérée par le temps écoulé. Cette approche, opérationnalisée par les cellules SAR pour les missions de recherche de personnes disparues, fournit le cadre conceptuel du calcul de position de Finder Bot.
+
+
+La correspondance entre ces trois piliers et les composants implémentés est la suivante :
+* Pilier 1 — RAG Spatial [10] → LLM Extractor + SQLite locale
+* Pilier 2 — Raisonnement sur graphe [13] → Recalage OSRM
+* Pilier 3 — Applied Search Theory [15] → Fenêtre de Probabilité
+2.2. Infrastructure et sources de données
+
+
+Le choix architectural central de Finder Bot est la priorisation d'une infrastructure entièrement locale, dictée par deux contraintes opérationnelles majeures : (1) la latence — un centre de régulation SAMU ne peut tolérer des temps de réponse supérieurs à deux secondes lors d'une urgence vitale ; (2) la souveraineté des données — toute transmission vers une API tierce externe serait incompatible avec les exigences du RGPD pour des données susceptibles d'identifier une victime.
+
+
+2.2.1. Base de données POI locale (SQLite)
+
+
+La base de données géographique principale est une base SQLite construite à partir du fichier OpenStreetMap de la France métropolitaine (france-latest.osm.pbf, ~5 Go). L'ingestion est réalisée via deux scripts spécialisés exploitant la bibliothèque Python osmium : (1) ingest_osm.py qui capture systématiquement tout objet portant un attribut « name » ou appartenant à des catégories structurelles critiques (ex: échangeurs, pylônes, châteaux d'eau) ; (2) ingest_complement.py qui enrichit la base avec des données d'occupation du sol (landuse), d'infrastructure énergétique (power) et de barrières physiques. La base résultante contient plus de 12 millions d'entrées, indexées sur les coordonnées et le nom, interrogeables en quelques dizaines de millisecondes. Le mode WAL est activé pour les lectures concurrentes.
+
+
+2.2.2. Moteur de routage (OSRM)
+
+
+L'itinéraire théorique est calculé par OSRM, qui retourne la géométrie GeoJSON complète, la distance totale et la durée estimée. Le profil de transport est adapté au mode déclaré (driving, foot, bike). La vitesse moyenne réelle est dérivée selon : v_OSRM = (distance_km / durée_s) × 3600.
+
+
+2.2.3. APIs de géocodage de secours (fallback)
+
+
+En cas d'absence de résultat local, deux mécanismes de repli sont configurés : l'API Nominatim pour le géocodage de villes et l'API Overpass pour les requêtes par tags OSM, avec retry exponentiel (3 tentatives, délai de base 2 s).
+
+
+2.3. Architecture du système Finder Bot
+
+
+Finder Bot est une application web Python basée sur FastAPI asynchrone, structurée en quatre couches :
+1. Couche présentation (HTML/CSS/JS + Leaflet)
+2. Couche API (endpoints /chat, /api/geocode, /api/update_context, /reset)
+3. Couche modèle (llm_extractor.py, chat_state.py)
+4. Couche services (geocoding.py, routing.py)
+2.3.1. Interface hybride ARM
+
+
+L'interface est organisée en trois panneaux synchronisés en temps réel : un formulaire de saisie rapide (départ, arrivée, transport, durée), un chatbot conversationnel et une carte Leaflet dynamique affichant l'itinéraire, la zone de probabilité, les POI candidats et la position confirmée. La synchronisation est bidirectionnelle : toute modification du formulaire propage ses valeurs dans l'état conversationnel, et inversement.
+
+
+2.4. Pipeline de traitement conversationnel agentique
+
+
+À chaque message, le système exécute un pipeline séquentiel en cinq étapes.
+
+
+2.4.1. Décision agentique (decide_action)
+
+
+La décision agentique (decide_action) constitue le premier appel LLM : le modèle reçoit un résumé de l'état courant et retourne une action parmi un ensemble fermé (finish, clarify, reject_pois, show_all_pois, confirm_choice, recalage, continue). Ce découplage décision/extraction suit la logique de l'orchestration agentique : le LLM est un agent décisionnel, non un moteur géographique.
+
+
+2.4.2. Extraction d'entités hybride (Regex + LLM)
+
+
+L'extraction d'entités hybride (Regex + LLM) constitue le second appel : le modèle extrait départ, arrivée, transport, durée, repères et numéros de routes. Une couche regex prioritaire extrait les durées temporelles pour éliminer tout risque d'hallucination sur ce champ critique.
+
+
+2.4.3. Recalage par route citée
+
+
+Le recalage par route citée s'applique lorsqu'un numéro de voie est identifié (N12, D906, A11…) : la distance cumulée au point de correspondance OSRM est convertie en coordonnées, avec un niveau de confiance fixé à 0,90.
+
+
+2.4.4. Recalage par repère visuel — Mode Enquête
+
+
+Le recalage par repère visuel est le mécanisme central, opérant en quatre temps :
+Étape 1 — Recherche dans la base locale (Keyword Stripping & Fuzzy Search). Le système opère d'abord un « nettoyage sémantique » (Keyword Stripping) : il sépare le type générique du bâtiment (ex: "Pharmacie", "Boulangerie") du nom propre éventuel (ex: "Lafayette", "Paul"). Le type est converti en attribut technique OSM (ex: amenity=pharmacy) via un dictionnaire d'alignement d'ontologie. Le nom propre restant est ensuite soumis à la base SQLite locale. Pour garantir une tolérance aux erreurs déclaratives de l'appelant (ex: "Rue" au lieu de "Route"), l'algorithme intègre une recherche floue (Fuzzy Search) couplée à des clauses SQL étendues, le tout circonscrit dans un rayon de 10 km autour de la zone de probabilité.
+
+
+Étape 2 — Projection sur l'itinéraire (contrainte routière). Conformément au principe du raisonnement spatial sur graphe, seuls les candidats situés à moins de 1 200 mètres de l'axe de l'itinéraire OSRM sont conservés. Cette projection est calculée par recherche du point le plus proche de la polyligne GeoJSON via la distance de Haversine. Les candidats hors du couloir routier sont éliminés, réduisant drastiquement les faux positifs en contexte multi-itinéraire.
+
+
+Étape 3 — Intersection multi-indices. Lorsque plusieurs repères sont mentionnés simultanément, le système applique une stratégie d'intersection spatiale : pour chaque candidat pivot (correspondant au premier repère), il vérifie la présence des autres repères dans un rayon de 250 à 400 mètres. Chaque correspondance supplémentaire incrémente un compteur de types d'indices distincts (score_distinct). Les candidats sont triés par ce score décroissant.
+
+
+Étape 4 — Victoire par K.O. Si le candidat de tête dispose d'un score_distinct strictement supérieur à tous ses concurrents, la position est confirmée automatiquement sans solliciter de validation supplémentaire. Ce mécanisme réduit le nombre d'itérations nécessaires et allège la charge cognitive de l'ARM. Lorsque plusieurs candidats sont à égalité, le système les liste à l'ARM, qui peut sélectionner par numéro ou fournir un indice supplémentaire pour trancher (Mode Enquête itératif).
+
+
+2.5. Modélisation de la Fenêtre de Probabilité
+
+
+En transposition de l'Applied Search Theory [18], la position estimée n'est pas un point unique mais une fenêtre délimitée par deux hypothèses : le Point Max (vitesse = 100 % de v_OSRM) et le Point Min (vitesse = 75 % de v_OSRM, modélisant trafic et arrêts). Les formules appliquées sont :
+* dist_centre = (dist_max + dist_min) / 2
+* rayon = (dist_max − dist_min) / 2 + 500 m (rayon plancher : 1 000 m)
+Le mécanisme de Spatial Belief Updating traite les repères déclarés comme dépassés : leur distance cumulée écrase la borne dist_min, contractant asymétriquement la fenêtre vers l'avant de l'itinéraire et purgeant tous les candidats en amont.
+2.6. Modélisation du Score de Confiance
+
+
+Conformément à la norme RFC 7459 [5], chaque état conversationnel est assorti d'un score calculé algorithmiquement selon le niveau de preuve accumulé, en six niveaux :
+
+
+Niveau
+	Score
+	Condition
+	Rayon
+	1
+	0,30
+	Aucune donnée de trajet
+	—
+	2
+	0,70
+	Fenêtre de Probabilité calculée
+	Plurikilométrique
+	3
+	0,85
+	Repère visuel projeté sur l'itinéraire
+	800 m
+	4
+	0,90
+	Numéro de voie identifié dans OSRM
+	500 m
+	5
+	0,85–0,90
+	K.O. Victory multi-indices
+	Proportionnel
+	6
+	0,95
+	Validation explicite de l'ARM
+	Minimal
+	
+
+Ces niveaux sont exposés en temps réel à l'ARM via la taille du cercle sur la carte et la réponse textuelle du bot. La transparence du score est une exigence opérationnelle : l'ARM doit disposer d'une lecture directe du niveau de certitude avant d'engager des moyens SMUR ou HéliSMUR.
+
+
+2.7. Protocole d'évaluation (scénarios de simulation virtuelle)
+
+
+En l'absence d'enregistrements réels (secret médical, RGPD), l'évaluation repose sur une cohorte de scénarios de simulation virtuelle couvrant trois environnements : urbain dense, péri-urbain et rural isolé.
+
+
+2.7.1. Conception des scénarios
+
+
+Pour chaque scénario, un itinéraire de référence est défini et une position réelle (vérité terrain) est tirée aléatoirement sur cet itinéraire.
+
+
+2.7.2. Protocole de simulation
+
+
+Un évaluateur se positionne à la vérité terrain via Google Maps Street View et décrit l'environnement à 360° en simulant un appelant en détresse, avec plusieurs niveaux de granularité descriptive.
+
+
+2.7.3. Métriques d'évaluation
+   * Précision spatiale : distance de Haversine entre centroïde estimé et vérité terrain.
+   * Taux de succès : proportion de scénarios où l'erreur finale est inférieure à 1 000 m, seuil opérationnel compatible avec l'engagement d'un vecteur SMUR.
+   * Efficacité itérative : nombre de tours pour atteindre une confiance ≥ 0,85.
+   * Taux de K.O. Victory : proportion de cas où la validation automatique multi-indices s'est déclenchée, évitant une itération supplémentaire.
+2.8. Considérations éthiques et réglementaires
+
+
+Finder Bot satisfait au RGPD par le principe de minimisation : aucune donnée n'est persistée sur disque ni transmise à un tiers. L'état conversationnel est maintenu exclusivement en mémoire vive et effacé à la réinitialisation de session. Les requêtes transmises au LLM ne contiennent aucun identifiant personnel, seulement des descriptions environnementales. Le score de confiance constitue un dispositif de transparence algorithmique : le système ne se substitue pas au jugement de l'ARM mais lui fournit une information de localisation quantifiée, atténuant le risque d'automation bias par l'affichage explicite du rayon d'incertitude résiduelle.
+
+
+________________
+RÉSULTATS
+CARTOGRAPHIE DES FONCTIONNALITÉS IMPLÉMENTÉES - FINDER BOT (HéliSMUR)
+
+
+Cette session liste l'ensemble des modules, algorithmes et fonctionnalités développés pour le projet Finder Bot.
+
+
+1. Architecture et Intelligence Artificielle (RAG Spatial)
+   * Orchestration Agentique Séparée : Découplage de la phase de "Décision" (que doit faire le bot ?) et de la phase "d'Extraction" (quelles sont les données géographiques ?).
+   * Extraction d'Entités par LLM : Analyse en langage naturel pour extraire le départ, l'arrivée, le moyen de transport, la durée écoulée, les routes empruntées et les repères visuels.
+   * Règles de Robustesse (Regex-First) : Utilisation d'expressions régulières prioritaires sur le LLM pour l'extraction critique (notamment pour capter infailliblement les formats de temps comme "1h30" ou "45 min") afin d'éviter les hallucinations.
+2. Modélisation de l'Incertitude et Applied Search Theory
+   * Fenêtre de Probabilité Dynamique : Calcul d'un "Point Min" (conducteur lent) et "Point Max" (conducteur rapide) basé sur les vitesses réelles de chaque segment OSRM, créant un cercle d'incertitude réaliste.
+   * Spatial Belief Updating (Mise à jour de Croyance) : Capacité du système à traiter un repère comme "dépassé". Le système déplace alors la borne minimale de distance, poussant le cercle de recherche vers l'avant et supprimant définitivement les zones arrière.
+   * Calcul Transparent de la Confiance : Système déterministe à 6 niveaux (de 0.30 à 0.95) calculé selon les preuves géographiques accumulées, affiché à l'utilisateur sans s'en remettre au hasard du LLM.
+3. Moteur Géographique et Données (SQLite + OSRM)
+   * Base de données locale souveraine : Ingurgitation de la carte de France OpenStreetMap (PBF) dans une base SQLite ultra-rapide contenant plus de 12 millions d'entrées (pas de dépendance externe pour les requêtes POI, conformité RGPD garantie).
+   * Contrainte Topologique (Filtrage sur Graphe) : Projection mathématique de tous les POI candidats sur le couloir de l'itinéraire OSRM (élimination instantanée de tous les points situés hors de la route).
+   * Fallback d'Infrastructures : Bascule automatique vers des API tierces (Nominatim/Overpass) si la base locale manque de données pour une ville spécifique.
+4. Moteur de Recherche Sémantique Avancé
+   * Alignement d'Ontologie (Massive Mapping) : Traduction automatique des mots de l'appelant (ex: "pharmacie", "aire de repos", "complexe sportif") vers la syntaxe technique d'OpenStreetMap (amenity=pharmacy, highway=rest_area).
+   * Nettoyage de Requête (Keyword Stripping) : Le système dissocie le nom propre de sa catégorie (ex: "Boulangerie Paul" devient le filtre type="bakery" + nom="Paul").
+   * Tolérance aux Fautes (Fuzzy Search) : Implémentation d'un algorithme de recherche floue qui retrouve un POI même si l'appelant fait une erreur de prononciation ou d'orthographe (ex: "Route" vs "Rue").
+5. Résolution de Conflits et Raisonnement Spatial
+   * Intersection Multi-Indices : Capacité à trianguler une position en vérifiant la proximité immédiate (250m) de plusieurs indices différents cités par l'appelant (ex: un Carrefour + une Banque + une Boucherie).
+   * Victoire par K.O. : Mécanisme qui clôture automatiquement l'enquête géographique sans demander la confirmation de l'humain si un seul candidat écrase mathématiquement tous les autres grâce à la combinaison d'indices.
+6. Interface Homme-Machine (Human-in-the-Loop)
+   * Interface Hybride Synchronisée : Le formulaire de contexte (à gauche), le chatbot (au centre) et la carte interactive (à droite) communiquent et se mettent à jour mutuellement en temps réel.
+   * Zone de Recherche Manuelle : L'ARM peut dessiner un cercle avec sa souris sur la carte Leaflet ; le bot restreint immédiatement ses recherches mathématiques à l'intérieur de ce cercle.
+   * Machine à Remonter le Temps (Undo) : Conservation d'une pile d'historique de 10 états permettant à l'ARM d'annuler une étape de recherche si l'appelant s'est trompé dans sa description.
+   * Visualisation Géodésique : Tous les marqueurs Leaflet affichent directement leurs coordonnées Lat/Lon complètes à 5 décimales pour un report instantané dans les outils du SAMU.
+3.1. Performances globales de la cohorte d'évaluation
+
+
+L'évaluation de Finder Bot a été conduite sur une cohorte de cinq scénarios de simulation virtuelle, couvrant quatre types d'environnements géographiques représentatifs du territoire français : milieu urbain dense, zone péri-urbaine, axe autoroutier et milieu rural isolé. Pour chaque scénario, la position de vérité terrain a été établie par localisation précise sur Google Maps Street View, et les descriptions fournies au système ont reproduit le comportement verbal d'un appelant en situation de détresse, incluant délibérément des variantes orthographiques et des indices génériques pour tester la robustesse au bruit sémantique.
+
+
+Le Tableau 1 détaille la composition de la cohorte. Le Tableau 2 présente l'ensemble des métriques de performance obtenues à l'issue de chaque simulation.
+
+
+
+
+
+
+Tableau 1 — Caractéristiques des cinq scénarios de la cohorte d'évaluation.
+
+
+N°
+	Trajet
+	Environnement
+	Durée simulée
+	Repères verbaux fournis
+	1
+	Nantes → Rennes (N137/N157)
+	Urbain / Péri-urbain
+	90 min
+	« Un carrefour » ; « Pharmacie et Banque Crédit Agricole » ; « Boucherie Aymet »
+	2
+	Montrouge → Cachan (Hauts-de-Seine)
+	Urbain dense
+	5 min
+	« Station Total Energie » ; « Station Total Energies » ; « TotalEnergies »
+	3
+	Tours → Poitiers (A10)
+	Axe autoroutier
+	40 min
+	« Aire de services et des stations » ; « Boutique Brioche Dorée »
+	4
+	Lyon → Valence (A7)
+	Péri-urbain / Autoroutier
+	45 min
+	« Des complexes sportifs » ; « Rue Anatole France »
+	5
+	Limoges → Solignac (D704)
+	Rural isolé
+	12 min
+	« Je viens de dépasser l'arrêt de bus Route du Boudaud » ; « Les Vignes »
+	
+
+Tableau 2 — Métriques de performance par scénario
+
+
+N°
+	Localisation confirmée
+	Erreur (m)
+	Itérations
+	Confiance finale
+	K.O.
+	Mécanisme principal de recalage
+	1
+	Carrefour Market, Vern-sur-Seiche
+	~12 m
+	4
+	0,85
+	Oui
+	Intersection spatiale multi-indices — Victoire par K.O.
+	2
+	Station TotalEnergies, Bagneux / Av. A. Briand
+	~15 m
+	6
+	0,85
+	Non
+	Repère unique après normalisation nominale
+	3
+	Aire de Châtellerault-Antran (A10)
+	~8 m
+	5
+	0,85
+	Non
+	Alignement sémantique OSM + repère commercial spécifique
+	4
+	Piscine Charly Kirakossian, Vienne
+	~25 m
+	3
+	0,95
+	Non
+	Triangulation hétérogène + validation ARM
+	5
+	Les Vignes, Solignac Nord
+	~20 m
+	3
+	0,85
+	Non
+	Mise à jour de borne temporelle + repère toponymique
+	
+
+
+
+L'ensemble des cinq scénarios a abouti à une localisation dont l'erreur spatiale finale est comprise entre 8 et 25 mètres. Ces valeurs sont très inférieures au seuil opérationnel de 1 000 mètres retenu pour l'engagement d'un vecteur SMUR, aboutissant à un taux de succès de 100 % sur la cohorte. Le nombre de tours de conversation nécessaires pour atteindre une confiance supérieure ou égale à 0,85 varie entre 3 et 6, pour une moyenne de 4,2 itérations. La Victoire par K.O. a été déclenchée dans un cas sur cinq (Scénario 1), permettant d'économiser un tour de parole complet.
+
+
+3.2. Analyse comportementale par scénario
+
+
+Pour comprendre la dynamique de réduction de l'incertitude spatiale, chaque scénario a fait l'objet d'une analyse des logs du système, permettant d'isoler les points de friction sémantique et les moments de convergence algorithmique.
+
+
+3.2.1. Scénario 1 — Désambiguïsation multi-indices en milieu urbain (Nantes → Rennes)
+
+
+Ce scénario simulait une progression de 90 minutes aboutissant en périphérie rennaise (Vern-sur-Seiche). L'appel débutait par un indice hautement ambigu en zone urbaine : « Un carrefour ». Après calcul de la Fenêtre de Probabilité (km 71 à km 107 sur l'itinéraire), le moteur RAG spatial a identifié 61 candidats répondant à ce critère dans le couloir routier, dont 50 validés par projection géométrique (situés à moins de 1 500 mètres de l'axe OSRM). L'apport progressif de deux indices supplémentaires (« Pharmacie » puis « Banque Crédit Agricole ») a déclenché le moteur de scoring par intersection, réduisant la liste sans toutefois lever l'ambiguïté résiduelle.
+
+
+L'introduction d'un troisième repère spécifique (« Boucherie Aymet ») a constitué le point de bascule : la correspondance unique trouvée dans la base SQLite a été croisée spatialement avec le candidat « Carrefour Market » de Vern-sur-Seiche, produisant un score d'intersection sans équivalent dans la liste concurrente. Ce déséquilibre a déclenché la procédure de Victoire par K.O. : le système a confirmé la position de façon autonome (48,091°N, −1,641°E) sans solliciter de validation supplémentaire de l'ARM. L'erreur spatiale mesurée est de 12 mètres. Ce mécanisme a permis d'économiser un tour de parole complet, estimé à 15-20 secondes en situation réelle de régulation médicale.
+  
+
+
+
+Figure 1 — Interface Finder Bot à l'issue du Scénario 1 (Nantes → Rennes). Le panneau gauche affiche le log de convergence illustrant la progression du score d'intersection jusqu'au déclenchement de la Victoire par K.O. ; la carte centrale positionne le marqueur de confirmation (étoile ★) sur le Carrefour Market de Vern-sur-Seiche, entouré du cercle de probabilité réduit à son rayon minimal.
+
+
+3.2.2. Scénario 2 — Sensibilité toponymique en zone urbaine ultra-dense (Montrouge → Cachan)
+
+
+Ce scénario de durée très courte (5 minutes de trajet) a exposé le système à la densité maximale de données disponibles : 5 000 POI ont été projetés simultanément sur l'itinéraire dès l'initialisation. Le repère fourni était une enseigne commerciale : « Station Total Energie ». Deux variantes successives ont été testées (« Station Total Energies » puis « TotalEnergies »), révélant une fragilité du moteur de correspondance face aux variations orthographiques : les deux premières formulations ont renvoyé zéro résultat, tandis que la forme officielle enregistrée dans OpenStreetMap (« TotalEnergies », sans espace) a immédiatement retourné un candidat unique, localisé à 37 mètres de l'axe routier.
+
+
+Malgré la masse de données initiale, la contrainte géométrique a opéré avec une efficacité totale : sur 5 000 candidats initiaux, un seul a simultanément satisfait le critère nominatif et la projection spatiale. La position confirmée (48,804°N, 2,325°E) présente une erreur de 15 mètres. Ce résultat souligne que la robustesse du filtrage topologique compense partiellement les faiblesses de l'appariement lexical exact, tout en mettant en évidence la nécessité d'un mécanisme de recherche floue pour absorber les variantes orthographiques dans des conditions de saisie sous stress.
+
+
+3.2.3. Scénario 3 — Alignement sémantique et interface hybride sur axe autoroutier (Tours → Poitiers)
+
+
+Sur l'axe autoroutier A10, à hauteur de Châtellerault (40 minutes de progression, soit 51 % de l'itinéraire), l'appelant a décrit son environnement par le terme générique « Aire de services et des stations ». La recherche initiale par correspondance nominale a échoué : dans la base OpenStreetMap, l'objet correspondant porte le nom propre « Aire de Châtellerault-Antran » et est catégorisée sous le tag technique highway=services, sans correspondance directe avec la description verbale. Ce cas illustre l'écart structurel entre le registre courant de l'appelant et la taxonomie OSM.
+
+
+Suite à l'extension du dictionnaire de correspondances sémantiques (« aire de services » → highway=services, « station » → amenity=fuel), la même requête a retourné 14 candidats pertinents. L'ajout de l'indice « Boutique Brioche Dorée » a permis de converger vers un candidat unique, ancré avec une erreur spatiale de 8 mètres — la meilleure précision de la cohorte. Ce scénario a également validé les fonctionnalités auxiliaires de l'interface hybride : la restriction manuelle de la zone de recherche par dessin d'un cercle sur la carte (limitant le corpus à 88 POI) et le retour à l'état conversationnel précédent via la commande d'annulation, opérationnel sans perte d'information.
+
+
+3.2.4. Scénario 4 — Triangulation hétérogène et complémentarité homme-machine (Lyon → Valence)
+
+
+Positionné à mi-parcours de l'autoroute A7 (45 minutes de progression, zone de Vienne), ce scénario a testé la capacité du système à croiser des repères de nature sémantique radicalement différente : un équipement de loisir (« complexes sportifs ») et un élément odonymique (« Rue Anatole France »). La requête sur les équipements sportifs (leisure=sports_centre, leisure=pitch) a retourné 89 candidats ; l'intersection avec l'axe de voirie a réduit la liste à 8 propositions présentées à l'ARM sous forme numérotée sur la carte.
+
+
+La validation finale a illustré le principe de complémentarité humain-machine : face à ces 8 candidats, l'ARM a identifié visuellement le seul bâtiment massif perceptible depuis le flux autoroutier sans obstacle — la Piscine Charly Kirakossian, à Vienne. Cette confirmation manuelle a porté le score de confiance à 0,95 (CONFIDENCE_VERY_HIGH), soit le niveau le plus élevé enregistré dans la cohorte. L'erreur spatiale est de 25 mètres. Ce scénario valide également la précision de la Fenêtre de Probabilité calculée par OSRM : l'estimation temporelle initiale (45 minutes) avait placé le centroïde de recherche à quelques centaines de mètres du lieu réel, sans aucun indice descriptif préalable.
+
+
+3.2.5. Scénario 5 — Mise à jour de croyance spatiale en zone rurale (Limoges → Solignac)
+
+
+Le scénario rural a permis d'éprouver la dynamique de mise à jour de la Fenêtre de Probabilité à partir d'un repère passé. L'appelant a déclaré : « Je viens de dépasser l'arrêt de bus Route du Boudaud ». Le moteur a d'abord isolé l'entité nominale (« Boudaud ») du type d'objet (« arrêt de bus »), puis a exécuté une recherche floue pour absorber la variation orthographique introduite délibérément (« Rue » au lieu de « Route »), identifiant correctement le repère à 45,776°N, 1,289°E.
+
+
+La contribution principale de ce scénario réside dans l'exploitation de l'information temporelle : le repère étant déclaré comme déjà dépassé, il a été converti en borne kilométrique minimale pour la Fenêtre de Probabilité. La progression estimée est passée de 73 % à 88 %, entraînant une réduction asymétrique de la zone et l'élimination de l'ensemble des candidats situés en amont de ce point sur l'itinéraire. L'indice suivant (« Les Vignes ») n'a plus eu à être évalué que sur 25 candidats, conduisant à une résolution en 3 itérations totales et une erreur finale de 20 mètres. En zone rurale, où chaque repère nommé tend à être unique dans un rayon de plusieurs kilomètres, ce mécanisme de contrainte temporelle s'avère particulièrement décisif pour la convergence rapide du système.
+
+
+  
+
+
+
+Figure 2 — Interface Finder Bot à l'issue du Scénario 5 (Limoges → Solignac). La carte illustre le déplacement asymétrique de la Fenêtre de Probabilité après la déclaration du repère dépassé : le cercle orange s'est rétracté vers l'avant de l'itinéraire, éliminant les candidats situés en aval du point de passage confirmé et réduisant le corpus de recherche à 25 POI.
+
+
+3.3. Analyse transversale des facteurs de performance
+
+
+L'examen croisé des cinq scénarios permet d'identifier trois facteurs structurels déterminants pour la précision et l'efficience du système.
+   * Le premier facteur est la charge sémantique distinctive des indices. La convergence vers une précision métrique est systématiquement conditionnée par la disponibilité d'au moins un repère rare ou unique dans le couloir de l'itinéraire. Dans les Scénarios 1 et 3, des enseignes commerciales de faible occurrence (« Boucherie Aymet », « Brioche Dorée ») ont suffi à lever l'ambiguïté là où une enseigne nationale répandue (Carrefour, TotalEnergies) imposait des itérations supplémentaires. Le nombre d'itérations diminue significativement lorsqu'un indice hautement distinctif est disponible dès les premiers échanges (3 itérations pour les Scénarios 4 et 5, contre 6 pour le Scénario 2).
+   * Le deuxième facteur est l'efficacité de la contrainte topologique. Dans tous les scénarios, la projection sur le couloir routier OSRM (seuil de 1 200 mètres) s'est révélée déterminante pour réduire l'espace de recherche initial, quel que soit le volume de POI traités — de 1 891 candidats dans le Scénario 1 à 5 000 dans le Scénario 2. Cette contrainte constitue le verrou principal contre les faux positifs géographiques et conditionne la pertinence du scoring par intersection multi-indices.
+   * Le troisième facteur est la couverture et la cohérence de la base OSM locale. Le Scénario 3 a mis en évidence un écart entre la terminologie courante de l'appelant et les tags OSM, résolu par l'introduction d'un dictionnaire de correspondances sémantiques. Le Scénario 2 a révélé une sensibilité au nom officiel exact des enseignes. Ces deux points représentent des limites inhérentes à l'approche : la qualité du recalage dépend de la richesse et de la normalisation des données OpenStreetMap dans la zone considérée, facteur qui peut varier significativement entre un axe autoroutier très documenté et une route rurale à faible densité OSM.
+________________
+DISCUSSION
+L'objectif principal de ce travail de recherche était d'évaluer la faisabilité et la pertinence d'une architecture hybride (LLM, graphes de routage et base de données géospatiale locale) pour assister la régulation médicale dans la géolocalisation préhospitalière. Les résultats obtenus sur la cohorte d'évaluation confirment notre hypothèse de départ : si les modèles de langage s'avèrent inadaptés en tant qu'oracles géographiques autonomes, leur couplage avec un système de RAG spatial et un moteur de routage déterministe permet d'atteindre une précision quasi-centimétrique, exploitable par un service de secours tel que l'HéliSMUR.
+4.1. Forces théoriques et méthodologiques de la contribution
+Sur le plan théorique, la contribution majeure de cette étude réside dans la transposition réussie de l'Applied Search Theory [18], traditionnellement réservée aux missions physiques de recherche et sauvetage, au domaine logiciel de la régulation médicale d'urgence. En modélisant l'incertitude spatiale non pas comme un point fixe, mais comme une Fenêtre de Probabilité dynamique délimitée par les profils de déplacement extrêmes d'un sujet (Point Min et Point Max calculés via les vitesses OSRM), Finder Bot propose une approche systémique de l'incertitude. Le mécanisme de Spatial Belief Updating, validé lors du Scénario 5, permet de contracter asymétriquement cette fenêtre à chaque nouvel indice temporel. Cette formalisation algorithmique d'un raisonnement purement humain constitue une avancée novatrice pour les interfaces d'assistance d'urgence.
+Sur le plan méthodologique, le développement de l'Alignement d'Ontologie (Massive Mapping) et du Découplage Nom/Type (Keyword Stripping) a permis de lever l'un des verrous classiques des systèmes de Geoparsing : la rigidité des bases de données géographiques brutes. La capacité du système à extraire l'intention sémantique pour la convertir en métadonnée SQL, tout en réservant la chaîne de caractères pure à la recherche floue (Fuzzy Search), a drastiquement augmenté le taux de réussite face au bruit linguistique naturel.
+4.2. Limites de l'étude et de la solution
+Si les performances algorithmiques sont démontrées, cette recherche présente plusieurs limites qu'il convient de souligner avec recul.
+Sur le plan sémantique et comportemental, l'extraction par LLM reste vulnérable à l'ambiguïté des descriptions textuelles, particulièrement en situation de stress intense. Un appelant paniqué peut utiliser un vocabulaire erroné (confondre une chapelle et une église, une départementale et une nationale). De plus, l'interface suppose actuellement que l'appelant est capable de fournir au moins un repère visuel, ce qui exclut les cas d'inconscience du conducteur ou les environnements de nuit totale.
+Concernant la source de données, la dépendance exclusive à la base OSM constitue une autre limite. Si OSM offre une exhaustivité remarquable en zone urbaine, la granularité des données chute significativement en zone rurale très isolée. Dans ces scénarios extrêmes, le système pourrait plafonner au niveau 2 de confiance sans possibilité de recalage précis.
+Sur le plan méthodologique enfin, la cohorte d'évaluation repose sur des simulations virtuelles via Google Maps Street View. Cette méthode ne reproduit pas la charge émotionnelle et les biais cognitifs d'un véritable appelant en détresse. Une évaluation clinique sur des enregistrements réels d'appels au SAMU anonymisés constituerait le standard de preuve nécessaire pour valider définitivement la robustesse du modèle.
+4.3. Implications pratiques et perspectives
+Pour l'écosystème de la régulation médicale, l'implémentation de Finder Bot présente des implications directes sur la charge cognitive de l'ARM. L'automatisation de l'entonnoir décisionnel libère une ressource cognitive précieuse pouvant être réallouée au soutien psychologique de l'appelant et au recueil clinique. L'affichage transparent du score de confiance garantit par ailleurs que l'algorithme demeure un outil d'assistance sans induire de risque de complaisance algorithmique (automation bias).
+En guise d'ouverture, la prochaine frontière technologique réside dans l'intégration Zero-Click. En couplant Finder Bot à un module de Speech-to-Text de qualité médicale, il serait possible d'ingérer le flux audio de l'appel en temps réel, supprimant entièrement l'étape de saisie manuelle. Cette évolution, associée à un pilote observationnel au sein d'un centre 15 réel, constituerait l'étape finale vers le déploiement opérationnel d'une régulation médicale augmentée par l'intelligence artificielle.
+________________
+CONCLUSION
+
+
+L'urgence préhospitalière est une course contre la montre où chaque minute perdue à localiser une victime réduit drastiquement ses chances de survie, tout particulièrement dans le cadre d'interventions héliportées (HéliSMUR). L'objectif de ce mémoire était de répondre à une problématique critique des centres de régulation (SAMU) : comment déterminer avec précision les coordonnées géographiques d'un appelant en détresse lorsque les signaux automatiques (AML, GPS) font défaut, en se basant uniquement sur une description verbale approximative de son environnement ?
+
+
+Pour relever ce défi, nous avons développé *Finder Bot*, un assistant intelligent hybride. Plutôt que de s'en remettre aveuglément à un Modèle de Langage (LLM) — sujet aux hallucinations géographiques — notre démarche a consisté à concevoir une architecture de Raisonnement Spatial Assisté par la Génération (Spatial RAG). Le LLM a été relégué à un rôle d'agent d'extraction sémantique, tandis que la véritable résolution spatiale a été confiée à un moteur mathématique déterministe s'appuyant sur un graphe de routage (OSRM) et une base de données locale souveraine (OpenStreetMap). 
+
+
+Les résultats de nos simulations démontrent de manière probante l'efficacité de cette approche. En combinant la projection topologique (filtrage des POI sur le couloir routier), l'alignement sémantique (*Massive Mapping* et *Keyword Stripping* pour contrer les ambiguïtés linguistiques) et l'intersection multi-indices (mécanisme de *Victoire par K.O.*), le système parvient à localiser un sujet avec une précision quasi-centimétrique, allant de 8 à 25 mètres. La contribution la plus novatrice de ce travail reste l'implémentation algorithmique de l'« Applied Search Theory » à travers la notion de *Spatial Belief Updating*. En modélisant la position comme une Fenêtre de Probabilité dynamique qui se contracte asymétriquement dès lors qu'un repère est déclaré « dépassé », l'assistant simule avec rigueur le raisonnement déductif naturel d'un Assistant de Régulation Médicale (ARM), tout en l'affranchissant des calculs géométriques complexes.
+
+
+Au-delà des métriques de précision, les implications pratiques pour le secteur de la régulation d'urgence sont considérables. En automatisant l'entonnoir de recherche géographique, l'outil permet à l'ARM de réduire sa charge cognitive et de se recentrer sur l'interrogatoire médical et l'accompagnement psychologique de l'appelant. L'affichage continu d'un "Score de Confiance" transparent garantit par ailleurs la maîtrise humaine sur la décision finale d'engagement des secours.
+
+
+Si ce mémoire apporte des premiers éléments de réponse solides quant à la faisabilité d'une telle assistance, il soulève également de nouvelles questions et incite à de multiples prolongements. La dépendance actuelle à la complétude des données OpenStreetMap en milieu rural très isolé appelle à explorer l'intégration de bases de données institutionnelles hybrides (telles que la BD TOPO de l'IGN). 
+
+
+Sur le plan de l'innovation logicielle, la piste de travail la plus prometteuse réside dans l'intégration "Zero-Click". En greffant un module d'intelligence artificielle spécialisé dans la transcription vocale (*Speech-to-Text*) en amont de notre pipeline, le système pourrait "écouter" la conversation téléphonique en temps réel. Le LLM extrairait dynamiquement les repères prononcés par l'appelant, déplaçant et réduisant instantanément le cercle de probabilité sur l'écran de l'ARM sans la moindre saisie manuelle. Enfin, l'extension de ce moteur de raisonnement à des environnements non-routiers (secours en montagne ou en forêt), en y intégrant des variables telles que la topographie (déclivité) ou la météorologie en temps réel pour pondérer la zone d'incertitude, constitue une perspective de recherche passionnante à l'intersection de la Data Science, de la géomatique et de la médecine d'urgence.
+
+
+
+
+
+
+________________
+
+
+BIBLIOGRAPHIE
+1. Groupe Pasteur Mutualité. La régulation médicale des urgences par le SAMU : efficacité et rapidité. 2025.
+2. Directive (UE) 2018/1972 du Parlement européen et du Conseil établissant le code des communications électroniques européen. 2018.
+3. Agence du Numérique de la Sécurité Civile. AML – Advanced Mobile Location [Internet]. Paris: Ministère de l'Intérieur; 2021.
+4. Direction générale de l'offre de soins (DGOS). Instruction n° DGOS/R2/PF5/2022/28 relative à l'accès aux données AML par les centres de régulation. 2022.
+5. IETF. RFC 7459: Representation of Uncertainty and Confidence in the Presence of Location Information. 2015.
+6. Hu Y. Harvesting Big Geospatial Data from Natural Language Texts. In: Handbook of Big Geospatial Data. Springer; 2020.
+7. Gritta M, Pilehvar MT, Collier N. What's missing in geographical parsing? Lang Resour Eval. 2018;52(2):603-623.
+8. Hu X, et al. Location reference recognition from texts: A survey and comparison. ACM Comput Surv. 2024;56(5).
+9. Middleton SE, et al. Location Extraction from Social Media: Geoparsing, Location Disambiguation, and Geotagging. ACM Trans Inf Syst. 2018;36(4).
+10. Foley P, Wiesner M, et al. Where are you from? Geolocating Speech and Applications to Language Identification. In: Proc NAACL 2024. 2024.
+11. Manvi R, et al. GeoLLM: Extracting Geospatial Knowledge from Large Language Models. In: ICLR; 2024.
+12. Balsebre P, et al. LAMP: A Language Model on the Map. arXiv:2403.09059; 2024.
+13. Bilateral Spatial Reasoning about Street Networks: Graph-based RAG with Qualitative Spatial Representations. arXiv:2512.15388; 2025.
+14. Huang F, et al. GeoGPT-RAG Technical Report. arXiv:2509.09686; 2025.
+15. Koester RJ. Lost Person Behavior: A Search and Rescue Guide on Where to Look. dbS Productions; 2008.
+16. Hashemi Beni L, et al. An agent-based model reveals lost person behavior based on data from wilderness search and rescue. Sci Rep. 2022.
+17. Jacobs DE, et al. Evaluating lost person behavior models. Trans GIS. 2015.
+18. Mansfield G, et al. A Pragmatic Approach to Applied Search Theory. J Search Rescue. 2020;4(1):84-107.
+
+
+________________
+
+
+ANNEXES
+________________
+
+
+TABLE DES MATIÈRES
+ABSTRACT        2
+RÉSUMÉ        2
+SOMMAIRE        3
+GLOSSAIRE        4
+INTRODUCTION        6
+MATÉRIEL ET MÉTHODES        8
+RÉSULTATS        13
+DISCUSSION        21
+CONCLUSION        23
+BIBLIOGRAPHIE        25
+ANNEXES        27
+TABLE DES MATIÈRES        28

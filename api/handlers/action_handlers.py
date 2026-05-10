@@ -15,13 +15,6 @@ from api.dependencies import (
 async def handle_finish(llm_response: Optional[str], current_step: int) -> ChatResponse:
     """
     Action FINISH - L'utilisateur termine la conversation.
-    
-    Args:
-        llm_response: Réponse générée par le LLM
-        current_step: Étape actuelle de la conversation
-    
-    Returns:
-        ChatResponse avec message de conclusion
     """
     print("🏁 Action FINISH - Fin de conversation")
     return ChatResponse(
@@ -35,13 +28,6 @@ async def handle_finish(llm_response: Optional[str], current_step: int) -> ChatR
 async def handle_clarify(llm_response: Optional[str], current_step: int) -> ChatResponse:
     """
     Action CLARIFY - L'utilisateur pose une question ou est confus.
-    
-    Args:
-        llm_response: Réponse explicative du LLM
-        current_step: Étape actuelle
-    
-    Returns:
-        ChatResponse avec explication
     """
     print("❓ Action CLARIFY - Question/confusion de l'utilisateur")
     return ChatResponse(
@@ -55,231 +41,249 @@ async def handle_clarify(llm_response: Optional[str], current_step: int) -> Chat
 async def handle_reject_pois(llm_response: Optional[str], current_step: int) -> ChatResponse:
     """
     Action REJECT_POIS - L'utilisateur ne voit aucun POI proposé.
-    
-    Sauvegarde les POI rejetés et demande une description libre.
-    
-    Args:
-        llm_response: Message du LLM
-        current_step: Étape actuelle
-    
-    Returns:
-        ChatResponse demandant une description
     """
     print("🚫 Action REJECT_POIS - Utilisateur ne voit aucun POI")
     
-    # Sauvegarder les POI rejetés
     if chat_state.context.get('current_poi_list'):
+        if 'rejected_pois' not in chat_state.context:
+            chat_state.context['rejected_pois'] = []
         for p in chat_state.context['current_poi_list']:
             if p['name'] not in chat_state.context['rejected_pois']:
                 chat_state.context['rejected_pois'].append(p['name'])
-        print(f"📝 POI rejetés ajoutés: {len(chat_state.context['current_poi_list'])} POI")
     
-    # Réinitialiser l'état d'attente
     chat_state.context['awaiting_poi_selection'] = False
     chat_state.context['current_poi_list'] = []
     chat_state.context['awaiting_description'] = True
     
-    return ChatResponse(
-        message=llm_response or "D'accord, vous ne voyez aucun de ces points de repère. Pouvez-vous me décrire précisément ce que vous voyez autour de vous ?",
-        step=current_step + 1,
-        entities=None,
-        map_updates=None
-    )
+    question = "Pouvez-vous me décrire précisément ce que vous voyez autour de vous (un commerce, un panneau, un carrefour, etc.) pour m'aider à vous situer ?"
+    message = llm_response if llm_response else "D'accord, aucun de ces lieux ne correspond."
+    if "décrire" not in message.lower() and "voyez" not in message.lower():
+        message = f"{message}\n\n{question}"
+    
+    return ChatResponse(message=message, step=current_step + 1)
 
 
 async def handle_show_all_pois(current_step: int) -> ChatResponse:
     """
-    Action SHOW_ALL_POIS - Afficher tous les POI autour de la position.
-    
-    Charge les POI dans un rayon de 5km et les affiche sur la carte.
-    
-    Args:
-        current_step: Étape actuelle
-    
-    Returns:
-        ChatResponse avec liste des POI et mises à jour carte
+    Action SHOW_ALL_POIS - Afficher tous les POI autour de la position (ou zone manuelle).
+    Ne redessine pas de cercle si un cercle d'incertitude existe déjà.
+    Quand la route est disponible, distribue les POI le long du tracé.
     """
     print("🗺️ Action SHOW_ALL_POIS - Affichage de tous les POI")
     
-    if not chat_state.has_position():
-        return ChatResponse(
-            message="Je n'ai pas encore de position estimée. Pouvez-vous me donner plus d'informations sur votre trajet et le temps écoulé ?",
-            step=current_step + 1,
-            entities=None,
-            map_updates=None
-        )
-    
-    lat, lon = chat_state.coordinates
-    map_updates = []
+    manual_zone = chat_state.context.get('manual_zone')
+    is_manual = False
+    if manual_zone:
+        lat, lon, radius = manual_zone['lat'], manual_zone['lon'], manual_zone['radius']
+        source_label = "Zone manuelle"
+        is_manual = True
+    elif chat_state.has_position():
+        lat, lon = chat_state.coordinates
+        # Utiliser le rayon d'incertitude réel (stocké lors du calcul de position)
+        uncertainty_radius = chat_state.context.get('uncertainty_radius', 3000)
+        radius = uncertainty_radius + 500  # Petite marge pour la recherche
+        source_label = "Position estimée"
+    else:
+        return ChatResponse(message="Aucune zone à explorer. Tracez un cercle sur la carte.", step=current_step + 1)
     
     try:
-        # Charger tous les POI dans un rayon de 5km
-        nearby_pois = await geocoding_service.fetch_local_pois(lat, lon, radius=5000)
+        # Types de routes génériques à filtrer
+        generic_types = {'primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'service', 'living_street', 'trunk'}
+        
+        # Rayon max pour garder les POI dans le cercle visible
+        max_geo_distance = chat_state.context.get('uncertainty_radius', 3000)
+        
+        # Récupérer les POI — multi-points le long de la route pour couvrir tout le cercle
+        nearby_pois = []
+        if not is_manual and chat_state.has_route_data():
+            route_data = chat_state.route_data
+            range_info = chat_state.context.get('range_result')
+            
+            # Déterminer les points d'échantillonnage le long de la route
+            if range_info:
+                d_min = range_info.get('d_min', 0)
+                d_max = range_info.get('d_max', route_data['total_distance'])
+            else:
+                # Estimer à partir du centre ± rayon
+                total_dist = route_data['total_distance']
+                estimated_dist = chat_state.context.get('estimated_distance', total_dist / 2)
+                d_min = max(0, estimated_dist - max_geo_distance)
+                d_max = min(total_dist * 1.3, estimated_dist + max_geo_distance)
+            
+            # Échantillonner N points le long de [D_min, D_max]
+            n_samples = max(3, min(7, int((d_max - d_min) / 5000)))  # 1 point tous les 5km, min 3, max 7
+            sample_distances = [d_min + i * (d_max - d_min) / (n_samples - 1) for i in range(n_samples)]
+            
+            seen_coords = set()
+            fetch_radius = max(3000, int((d_max - d_min) / n_samples) + 1000)
+            
+            for sample_dist in sample_distances:
+                sample_pos = routing_service.find_position_on_route(route_data, int(sample_dist))
+                if not sample_pos:
+                    continue
+                pois_chunk = await geocoding_service.fetch_local_pois(
+                    sample_pos[0], sample_pos[1], radius=fetch_radius
+                )
+                for p in pois_chunk:
+                    coord_key = f"{p['lat']:.5f}_{p['lon']:.5f}"
+                    if coord_key not in seen_coords:
+                        seen_coords.add(coord_key)
+                        nearby_pois.append(p)
+            
+            print(f"📡 {len(nearby_pois)} POI uniques récupérés depuis {n_samples} points d'échantillonnage")
+        
+        # Fallback: fetch depuis le centre seul
+        if not nearby_pois:
+            nearby_pois = await geocoding_service.fetch_local_pois(lat, lon, radius=radius)
         
         if not nearby_pois:
-            return ChatResponse(
-                message="Je n'ai pas trouvé de POI dans cette zone. Pouvez-vous me décrire ce que vous voyez ?",
-                step=current_step + 1,
-                entities=None,
-                map_updates=None
+            return ChatResponse(message=f"Aucun point trouvé dans cette zone ({source_label}).", step=current_step + 1)
+        
+        # Filtrer les POI : types génériques, doublons, distance géographique
+        all_filtered_pois = []
+        if not is_manual and chat_state.has_route_data():
+            projected = routing_service.project_pois_on_route(
+                route_data, nearby_pois, max_distance_from_route=1500
             )
+            
+            if projected:
+                vu_names = set()
+                for p in projected:
+                    name_clean = p['name'].lower().strip()
+                    if name_clean in vu_names or len(name_clean) < 3:
+                        continue
+                    if p.get('type') in generic_types:
+                        continue
+                    geo_dist = routing_service._haversine_distance(lat, lon, p['lat'], p['lon'])
+                    if geo_dist > max_geo_distance:
+                        continue
+                    vu_names.add(name_clean)
+                    all_filtered_pois.append(p)
+                
+                print(f"🗺️ {len(all_filtered_pois)} POI dans le cercle (rayon {max_geo_distance}m)")
         
-        print(f"✅ {len(nearby_pois)} POI chargés pour affichage")
+        # Fallback: pas de route data → filtrer par distance + doublons
+        if not all_filtered_pois:
+            vu_names = set()
+            for p in nearby_pois:
+                name_clean = p['name'].lower().strip()
+                if name_clean in vu_names or len(name_clean) < 3:
+                    continue
+                if p.get('type') in generic_types:
+                    continue
+                vu_names.add(name_clean)
+                all_filtered_pois.append(p)
         
-        # Construire le message
-        poi_message = f"🗺️ **Voici tous les points d'intérêt dans un rayon de 5km autour de votre position estimée :**\n\n"
-        for i, poi in enumerate(nearby_pois[:15]):  # Max 15 dans le texte
-            poi_message += f"**{i+1}.** {poi['name']} ({poi['type']})\n"
-        if len(nearby_pois) > 15:
-            poi_message += f"\n...et {len(nearby_pois) - 15} autres POI affichés sur la carte.\n"
-        poi_message += "\n*Voyez-vous l'un de ces lieux ? Indiquez le numéro ou décrivez ce que vous voyez.*"
+        # Texte : lister les 15 premiers pour la lisibilité du chat
+        text_pois = all_filtered_pois[:15]
+        poi_message = f"🗺️ **Voici les points d'intérêt trouvés dans la zone ({source_label}) — {len(all_filtered_pois)} au total :**\n\n"
+        for i, poi in enumerate(text_pois, 1):
+            poi_message += f"{i}. {poi['name']} ({poi['type']})\n"
+        if len(all_filtered_pois) > 15:
+            poi_message += f"\n_...et {len(all_filtered_pois) - 15} autres affichés sur la carte._\n"
         
-        # Stocker la liste pour sélection ultérieure
-        chat_state.context['current_poi_list'] = nearby_pois
+        chat_state.context['current_poi_list'] = all_filtered_pois
         chat_state.context['awaiting_poi_selection'] = True
-        chat_state.context['awaiting_description'] = False
         
-        # Envoyer search_area_circle avec tous les POI
-        map_updates.append({
-            'type': 'search_area_circle',
-            'lat': lat,
-            'lon': lon,
-            'radius': 5000,
-            'confidence': chat_state.confidence,
-            'source': 'Position estimée',
-            'poi_type': 'Zone de recherche',
-            'nearby_pois': nearby_pois,
-            'fitBounds': True
-        })
+        # Carte : afficher TOUS les POI
+        if is_manual:
+            map_updates = [{
+                'type': 'search_area_circle', 'lat': lat, 'lon': lon, 'radius': radius,
+                'confidence': 0.8, 'source': source_label, 'nearby_pois': all_filtered_pois,
+                'fitBounds': True, 'clear': False
+            }]
+        else:
+            # Envoyer tous les POI comme petits points verts (pas numérotés)
+            map_updates = [{
+                'type': 'pois_all',
+                'pois': all_filtered_pois,
+                'fitBounds': False,
+                'estimated_position': {'lat': lat, 'lon': lon}
+            }]
         
-        print(f"🔵 ENVOI search_area_circle: {len(nearby_pois)} POI verts")
+        # SAUVEGARDE HISTORIQUE
+        chat_state.add_poi_to_history(f"Tous les POI ({source_label})", all_filtered_pois, map_updates)
         
-        return ChatResponse(
-            message=poi_message,
-            step=current_step + 1,
-            entities=None,
-            map_updates=map_updates
-        )
-        
+        return ChatResponse(message=poi_message + "\nL'appelant en voit-il un parmi eux ?", step=current_step + 1, map_updates=map_updates)
     except Exception as e:
-        print(f"⚠️  Erreur chargement POI: {e}")
-        return ChatResponse(
-            message="Une erreur est survenue lors du chargement des POI. Pouvez-vous me décrire ce que vous voyez ?",
-            step=current_step + 1,
-            entities=None,
-            map_updates=None
-        )
+        print(f"Error handle_show_all_pois: {e}")
+        return ChatResponse(message="Erreur lors du chargement des POI.", step=current_step + 1)
 
 
-async def handle_confirm_choice(
-    user_response: str, 
-    poi_index: Optional[int], 
-    current_step: int
-) -> Tuple[Optional[ChatResponse], List[Dict]]:
+async def handle_show_previous_list(current_step: int, target_keyword: str = None) -> ChatResponse:
     """
-    Action CONFIRM_CHOICE - L'utilisateur choisit un POI par numéro/nom.
+    Action SHOW_PREVIOUS_LIST - Restaurer une recherche précédente par mot-clé ou par défaut (undo).
+    """
+    if target_keyword:
+        print(f"🔙 Action SHOW_PREVIOUS_LIST - Recherche du mot-clé: {target_keyword}")
+        prev = chat_state.find_specific_history(target_keyword)
+    else:
+        print("🔙 Action SHOW_PREVIOUS_LIST - Restauration (undo simple)")
+        prev = chat_state.pop_previous_poi_list()
     
-    Effectue le recalage sur le POI sélectionné.
+    if not prev:
+        return ChatResponse(
+            message="Je n'ai pas trouvé cette étape dans mon historique. Pouvez-vous me décrire où vous êtes ?",
+            step=current_step + 1
+        )
     
-    Args:
-        user_response: Message brut de l'utilisateur
-        poi_index: Index du POI extrait par le LLM (1-indexed)
-        current_step: Étape actuelle
+    # Restaurer dans le contexte
+    chat_state.context['current_poi_list'] = prev['list']
+    chat_state.context['awaiting_poi_selection'] = True
+    chat_state.context['awaiting_description'] = False
     
-    Returns:
-        Tuple (ChatResponse si succès, map_updates)
-        Si None en premier élément, le choix n'a pas été confirmé
+    # Message de restauration
+    msg = f"🔙 **Retour à la recherche : \"{prev['query']}\"**\n\n"
+    for i, poi in enumerate(prev['list'][:10]):
+        msg += f"{i+1}. {poi['name']} ({poi.get('type', 'repère')})\n"
+    
+    # FORCER LE NETTOYAGE CARTE SÉLECTIF (on garde la structure : trajet et progression)
+    map_updates = [{'type': 'clear_map', 'keep_structure': True}] + prev['map_updates']
+    
+    return ChatResponse(
+        message=msg + "\nLequel voyez-vous ?",
+        step=current_step + 1,
+        map_updates=map_updates
+    )
+
+
+async def handle_confirm_choice(user_response: str, poi_index: Optional[int], current_step: int) -> Tuple[Optional[ChatResponse], List[Dict]]:
+    """
+    Action CONFIRM_CHOICE - Validation d'un POI.
     """
     current_list = chat_state.context.get('current_poi_list', [])
-    
-    if not current_list:
-        return None, []
+    if not current_list: return None, []
     
     selected_poi = None
-    map_updates = []
-    
-    print(f"✅ Action CONFIRM_CHOICE - Index demandé: {poi_index}")
-    
-    # Sélection par index (LLM a extrait le numéro)
     if poi_index and 1 <= poi_index <= len(current_list):
         selected_poi = current_list[poi_index - 1]
-        print(f"✅ POI sélectionné par numéro {poi_index}: {selected_poi['name']}")
     
-    # Fallback: Détection par nom si LLM n'a pas trouvé l'index
     if not selected_poi:
         user_lower = user_response.lower().strip()
         for poi in current_list:
-            if poi['name'].lower() in user_lower or user_lower in poi['name'].lower():
+            if poi['name'].lower() in user_lower:
                 selected_poi = poi
-                print(f"✅ POI sélectionné par nom (fallback): {poi['name']}")
                 break
     
-    if not selected_poi:
-        return None, []
+    if not selected_poi: return None, []
     
-    # === RECALAGE SUR LE POI CONFIRMÉ ===
-    print(f"\n{'='*60}")
-    print(f"🎯 RECALAGE POI CONFIRMÉ: {selected_poi['name']}")
-    print(f"{'='*60}")
-    
-    poi_lat = selected_poi['lat']
-    poi_lon = selected_poi['lon']
+    poi_lat, poi_lon = selected_poi['lat'], selected_poi['lon']
     chat_state.set_coordinates(poi_lat, poi_lon, CONFIDENCE_VERY_HIGH)
+    chat_state.context.update({'recalage_done': True, 'awaiting_poi_selection': False, 'current_poi_list': []})
     
-    # Calculer la nouvelle durée depuis ce point
-    if chat_state.has_route_data() and 'cumulative_distance' in selected_poi:
-        poi_distance = selected_poi['cumulative_distance']
-        total_distance = chat_state.route_data['total_distance']
-        total_duration = chat_state.route_data['total_duration']
-        
-        new_duration_sec = (poi_distance / total_distance) * total_duration
-        new_duration_min = int(new_duration_sec / 60)
-        
-        chat_state.context['duration'] = new_duration_min
-        print(f"⏱️  Durée recalée: {new_duration_min} min")
+    recalage_message = f"✅ **Position recalée !** Vous êtes à **{selected_poi['name']}**.\n📍 Coordonnées: {poi_lat:.5f}, {poi_lon:.5f}\n"
     
-    chat_state.context['recalage_done'] = True
-    chat_state.context['awaiting_poi_selection'] = False
-    chat_state.context['current_poi_list'] = []
-    
-    recalage_message = f"✅ **Position recalée !** Vous êtes à **{selected_poi['name']}** ({selected_poi['type']}).\n\n"
-    recalage_message += f"📍 Coordonnées: {poi_lat:.5f}, {poi_lon:.5f}\n\n"
-    
-    print(f"📍 Nouvelle position: {poi_lat:.4f}°N, {poi_lon:.4f}°E")
-    
-    # Charger les POI autour du point recalé (1km)
-    nearby_pois_list = []
+    nearby_pois = []
     try:
         nearby_pois = await geocoding_service.fetch_local_pois(poi_lat, poi_lon, radius=1000)
-        if nearby_pois:
-            other_pois = [p for p in nearby_pois if p['name'] != selected_poi['name']]
-            nearby_pois_list = other_pois
-            if other_pois:
-                recalage_message += f"**{len(other_pois)} POI autour de ce point (1km) :**\n"
-                for poi in other_pois[:8]:
-                    recalage_message += f"- {poi['name']} ({poi['type']})\n"
-                print(f"✅ {len(other_pois)} POI trouvés autour du point recalé")
-    except Exception as e:
-        print(f"⚠️  Erreur recherche POI: {e}")
+    except: pass
     
-    # Cercle 1km + POI verts
-    map_updates.append({
-        'type': 'search_area_circle',
-        'lat': poi_lat,
-        'lon': poi_lon,
-        'radius': 1000,
+    map_updates = [{
+        'type': 'position_recaled',
+        'lat': poi_lat, 'lon': poi_lon,
         'confidence': CONFIDENCE_VERY_HIGH,
         'source': selected_poi['name'],
-        'poi_type': selected_poi['type'],
-        'nearby_pois': nearby_pois_list,
-        'fitBounds': True
-    })
+        'name': selected_poi['name']
+    }]
     
-    print(f"\n🔵 ENVOI search_area_circle: {len(nearby_pois_list)} POI verts")
-    
-    return ChatResponse(
-        message=recalage_message,
-        step=current_step + 1,
-        entities=None,
-        map_updates=map_updates
-    ), map_updates
+    return ChatResponse(message=recalage_message, step=current_step + 1, map_updates=map_updates), map_updates

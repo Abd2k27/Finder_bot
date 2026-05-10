@@ -1,0 +1,32 @@
+# Cartographie des Fonctionnalités Implémentées - Finder Bot (HéliSMUR)
+Ce document liste l'ensemble des modules, algorithmes et fonctionnalités développés pour le projet Finder Bot.
+
+## 1. Architecture et Intelligence Artificielle (RAG Spatial)
+*   **Orchestration Agentique Séparée** : Découplage de la phase de "Décision" (que doit faire le bot ?) et de la phase "d'Extraction" (quelles sont les données géographiques ?).
+*   **Extraction d'Entités par LLM** : Analyse en langage naturel pour extraire le départ, l'arrivée, le moyen de transport, la durée écoulée, les routes empruntées et les repères visuels.
+*   **Règles de Robustesse (Regex-First)** : Utilisation d'expressions régulières prioritaires sur le LLM pour l'extraction critique (notamment pour capter infailliblement les formats de temps comme "1h30" ou "45 min") afin d'éviter les hallucinations.
+
+## 2. Modélisation de l'Incertitude et Applied Search Theory
+*   **Fenêtre de Probabilité Dynamique** : Calcul d'un "Point Min" (conducteur lent) et "Point Max" (conducteur rapide) basé sur les vitesses réelles de chaque segment OSRM, créant un cercle d'incertitude réaliste.
+*   **Spatial Belief Updating (Mise à jour de Croyance)** : Capacité du système à traiter un repère comme "dépassé". Le système déplace alors la borne minimale de distance, poussant le cercle de recherche vers l'avant et supprimant définitivement les zones arrière.
+*   **Calcul Transparent de la Confiance** : Système déterministe à 6 niveaux (de 0.30 à 0.95) calculé selon les preuves géographiques accumulées, affiché à l'utilisateur sans s'en remettre au hasard du LLM.
+
+## 3. Moteur Géographique et Données (SQLite + OSRM)
+*   **Base de données locale souveraine** : Ingurgitation de la carte de France OpenStreetMap (PBF) dans une base SQLite ultra-rapide (pas de dépendance externe pour les requêtes POI, conformité RGPD garantie).
+*   **Contrainte Topologique (Filtrage sur Graphe)** : Projection mathématique de tous les POI candidats sur le couloir de l'itinéraire OSRM (élimination instantanée de tous les points situés hors de la route).
+*   **Fallback d'Infrastructures** : Bascule automatique vers des API tierces (Nominatim/Overpass) si la base locale manque de données pour une ville spécifique.
+
+## 4. Moteur de Recherche Sémantique Avancé
+*   **Alignement d'Ontologie (Massive Mapping)** : Traduction automatique des mots de l'appelant (ex: "pharmacie", "aire de repos", "complexe sportif") vers la syntaxe technique d'OpenStreetMap (`amenity=pharmacy`, `highway=rest_area`).
+*   **Nettoyage de Requête (Keyword Stripping)** : Le système dissocie le nom propre de sa catégorie (ex: "Boulangerie Paul" devient le filtre type="bakery" + nom="Paul").
+*   **Tolérance aux Fautes (Fuzzy Search)** : Implémentation d'un algorithme de recherche floue qui retrouve un POI même si l'appelant fait une erreur de prononciation ou d'orthographe (ex: "Route" vs "Rue").
+
+## 5. Résolution de Conflits et Raisonnement Spatial
+*   **Intersection Multi-Indices** : Capacité à trianguler une position en vérifiant la proximité immédiate (250m) de plusieurs indices différents cités par l'appelant (ex: un Carrefour + une Banque + une Boucherie).
+*   **Victoire par K.O.** : Mécanisme qui clôture automatiquement l'enquête géographique sans demander la confirmation de l'humain si un seul candidat écrase mathématiquement tous les autres grâce à la combinaison d'indices.
+
+## 6. Interface Homme-Machine (Human-in-the-Loop)
+*   **Interface Hybride Synchronisée** : Le formulaire de contexte (à gauche), le chatbot (au centre) et la carte interactive (à droite) communiquent et se mettent à jour mutuellement en temps réel.
+*   **Zone de Recherche Manuelle** : L'ARM peut dessiner un cercle avec sa souris sur la carte Leaflet ; le bot restreint immédiatement ses recherches mathématiques à l'intérieur de ce cercle.
+*   **Machine à Remonter le Temps (Undo)** : Conservation d'une pile d'historique de 10 états permettant à l'ARM d'annuler une étape de recherche si l'appelant s'est trompé dans sa description.
+*   **Visualisation Géodésique** : Tous les marqueurs Leaflet affichent directement leurs coordonnées Lat/Lon complètes à 5 décimales pour un report instantané dans les outils du SAMU.

@@ -1,0 +1,8 @@
+Y’a ça comme méthode, 
+https://csdk9.org/wp-content/uploads/A-Pragmatic-Approach-to-Applied-Search-Theory.pdf
+
+Et y’a ça que j’ai vu comme solution mais ça convient pas à ce qu’il veut :
+L'application directe lors d'un signalement 
+•⁠  ⁠Source : "Disparition d'un enfant mineur - Service Public" (https://www.service-public.gouv.fr/particuliers/vosdroits/F10385)
+•⁠  ⁠Pertinence : Elle évoque l'aspect technique d'un numéro d'urgence.
+•⁠  ⁠Détail clé : Elle indique que le numéro d'urgence 116 000 est "géolocalisé", ce qui implique une méthodologie automatique pour localiser l'appelant dès la prise de contact.

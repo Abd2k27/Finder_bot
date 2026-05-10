@@ -9,9 +9,9 @@ import re
 import traceback
 
 from fastapi import APIRouter
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
-from api.schemas import ChatMessage, ChatResponse, GeocodeRequest
+from api.schemas import ChatMessage, ChatResponse, GeocodeRequest, ContextUpdate, StateResponse
 from api.dependencies import (
     chat_state, llm_extractor, geocoding_service, routing_service,
     reset_chat_state, CONFIDENCE_HIGH
@@ -22,9 +22,9 @@ from api.handlers import (
     handle_reject_pois,
     handle_show_all_pois,
     handle_confirm_choice,
+    handle_show_previous_list,
     handle_route_recalage,
     handle_landmark_recalage,
-    handle_disambiguation_refinement,
     calculate_position_from_duration,
     calculate_position_from_distance,
     suggest_nearby_pois
@@ -50,6 +50,19 @@ async def geocode_proxy(request: GeocodeRequest):
         return {"success": False, "error": str(e)}
 
 
+@router.get("/api/autocomplete")
+async def autocomplete(query: str):
+    """Endpoint pour l'autocomplétion d'adresses"""
+    if not query or len(query) < 3:
+        return []
+    try:
+        results = await geocoding_service.search_address_candidates(query)
+        return results
+    except Exception as e:
+        print(f"Erreur API Autocomplete: {e}")
+        return []
+
+
 # ============================================================
 # ENDPOINT: Chat Principal
 # ============================================================
@@ -66,6 +79,9 @@ async def chat(message: ChatMessage):
         print(f"📨 ÉTAPE {current_step} : '{user_response}'")
         print(f"{'='*80}")
         
+        # Logger le message utilisateur
+        chat_state.log_event('user_message', {'message': user_response})
+        
         # Ajouter la réponse
         chat_state.add_response(user_response)
         
@@ -73,54 +89,39 @@ async def chat(message: ChatMessage):
         map_updates = []
         recalage_message = ""
         
-        # ═══════════════════════════════════════════════════════════════
-        # VÉRIFIER SI L'UTILISATEUR VEUT REVENIR EN ARRIÈRE (UNDO)
-        # ═══════════════════════════════════════════════════════════════
-        
-        user_lower = user_response.lower().strip()
-        undo_keywords = ['retour', 'revenir', 'arrière', 'précédent', 'annuler', 'undo', 'back', 'trompé', 'erreur']
-        wants_undo = any(kw in user_lower for kw in undo_keywords)
-        
-        if wants_undo and not chat_state.is_in_disambiguation():
-            # Vérifier s'il y a une désambiguïsation à restaurer
-            if chat_state.can_restore_disambiguation():
-                print(f"🔄 Restauration de la désambiguïsation précédente...")
-                if chat_state.restore_disambiguation():
-                    result = await handle_disambiguation_refinement(user_response, current_step, {})
-                    if result:
-                        return result
-        
-        # ═══════════════════════════════════════════════════════════════
-        # VÉRIFIER SI ON EST EN MODE DÉSAMBIGUÏSATION
-        # ═══════════════════════════════════════════════════════════════
-        
-        if chat_state.is_in_disambiguation():
-            print(f"🔀 Mode désambiguïsation actif - traitement raffinement")
-            result = await handle_disambiguation_refinement(user_response, current_step, {})
-            if result:
-                return result
+        # Gérer la réponse à "Voulez-vous élargir la recherche ?"
+        pending_wide = chat_state.context.get('pending_wide_search')
+        if pending_wide:
+            msg_lower = user_response.lower().strip()
+            chat_state.context.pop('pending_wide_search', None)
+            
+            if any(w in msg_lower for w in ['oui', 'yes', 'ok', 'd\'accord', 'vas-y', 'élargis', 'élargi']):
+                from api.handlers.recalage_handlers import _build_choice_response, _recalage_single_match
+                wide_matches = pending_wide['matches']
+                query = pending_wide['query']
+                
+                if len(wide_matches) == 1:
+                    return await _recalage_single_match(wide_matches[0], current_step, {})
+                else:
+                    return _build_choice_response(wide_matches, query, current_step, {})
+            else:
+                chat_state.context['awaiting_description'] = True
+                return ChatResponse(
+                    message="D'accord. Pouvez-vous me donner un autre repère visible autour de vous ?",
+                    step=current_step + 1
+                )
         
         # 🤖 DÉCISION AGENTIQUE
-        # Seulement skip si les infos de base sont vraiment manquantes ET pas une réponse spéciale
-        has_basic_info = (
-            chat_state.has_trajet() and
-            chat_state.context.get('transport') and
-            chat_state.context.get('duration')
+        # On active la décision dès qu'un trajet et un transport sont définis, peu importe l'étape
+        skip_agentic = (
+            not chat_state.has_trajet() or
+            not chat_state.context.get('transport')
         )
         
-        # Réponses spéciales qui doivent toujours passer par decide_action
-        special_responses = ['aucun', 'non', 'rien', 'pas vu', 'je ne vois pas', 'je vois pas']
-        is_special_response = any(sr in user_lower for sr in special_responses)
-        
-        # MODIFIÉ: Ne skip pas si c'est awaiting_poi_selection ou une réponse spéciale
-        awaiting_poi = chat_state.context.get('awaiting_poi_selection', False)
-        
-        if not has_basic_info and not awaiting_poi and not is_special_response:
-            print(f"⚡ Skip decide_action (infos de base incomplètes)")
+        if skip_agentic:
+            print(f"⚡ Skip decide_action (infos de base Nantes/Angers/Voiture incomplètes)")
             decision = {"action": "continue", "response": None, "extract_entities": True}
         else:
-            if awaiting_poi or is_special_response:
-                print(f"🎯 Force decide_action (awaiting_poi={awaiting_poi}, special={is_special_response})")
             decision = await llm_extractor.decide_action(user_response, chat_state.to_dict())
         
         action = decision.get("action", "continue")
@@ -141,6 +142,11 @@ async def chat(message: ChatMessage):
         
         if action == "show_all_pois":
             return await handle_show_all_pois(current_step)
+        
+        if action == "show_previous_list":
+            # On utilise le mot-clé extrait par la décision du LLM lui-même (ex: Carrefour)
+            target = decision.get("target_keyword")
+            return await handle_show_previous_list(current_step, target_keyword=target)
         
         if action == "confirm_choice" and chat_state.context.get('current_poi_list'):
             result, _ = await handle_confirm_choice(
@@ -197,6 +203,20 @@ async def chat(message: ChatMessage):
             map_updates.extend(route_map_updates)
         
         # ═══════════════════════════════════════════════════════════════
+        # MISE À JOUR DE CROYANCE (REPÈRES DÉPASSÉS)
+        # ═══════════════════════════════════════════════════════════════
+        reperes_depasses = entities.get('reperes_depasses') or []
+        if isinstance(reperes_depasses, str):
+            reperes_depasses = [reperes_depasses]
+        
+        if reperes_depasses and chat_state.has_route_data():
+            from api.handlers.recalage_handlers import handle_passed_landmarks
+            passed_result, passed_map_updates = await handle_passed_landmarks(reperes_depasses, current_step, entities)
+            if passed_result:
+                map_updates.extend(passed_map_updates)
+                recalage_message = passed_result + "\n\n"
+        
+        # ═══════════════════════════════════════════════════════════════
         # RECALAGE PAR REPÈRES
         # ═══════════════════════════════════════════════════════════════
         
@@ -209,8 +229,15 @@ async def chat(message: ChatMessage):
                 lieux = [lieux]
             landmarks_to_search = reperes + lieux
             
-            # Fallback: description libre
-            if not landmarks_to_search and chat_state.context.get('awaiting_description'):
+            # Fallback: description libre (UNIQUEMENT si aucune entité utile n'a été extraite)
+            has_useful_entities = (
+                entities.get('duree') is not None or 
+                entities.get('distance') is not None or 
+                entities.get('transport') is not None or
+                (entities.get('depart') and entities.get('fin'))
+            )
+            
+            if not landmarks_to_search and chat_state.context.get('awaiting_description') and not has_useful_entities:
                 clean_text = user_response.lower()
                 clean_text = re.sub(r'^(je vois|il y a|j\'aperçois|y a)\s*(une|un|des|le|la|les)?\s*', '', clean_text).strip()
                 if clean_text and len(clean_text) > 2:
@@ -218,9 +245,18 @@ async def chat(message: ChatMessage):
                     print(f"📝 Fallback description libre: '{clean_text}'")
             
             if landmarks_to_search and chat_state.coordinates and chat_state.has_route_data():
-                result = await handle_landmark_recalage(landmarks_to_search, current_step, entities)
+                # On récupère le flag d'ignorance du LLM
+                ignore_prev = decision.get("ignore_previous_candidates", False)
+                result = await handle_landmark_recalage(
+                    landmarks_to_search, 
+                    current_step, 
+                    entities, 
+                    user_message=user_response,
+                    ignore_prev=ignore_prev
+                )
                 if result:
                     print(f"\n💬 Réponse (recalage): {result.message[:100]}...")
+                    chat_state.log_event('bot_message', {'message': result.message})
                     return result
         
         # ═══════════════════════════════════════════════════════════════
@@ -263,15 +299,23 @@ async def chat(message: ChatMessage):
                     
                     if route_data:
                         chat_state.set_route_data(route_data)
+                        
+                        # Générer le buffer (2000m par défaut)
+                        route_buffer = routing_service.get_route_buffer(route_data['geometry'], 2000)
+                        
                         total_km = route_data['total_distance'] / 1000
                         total_min = route_data['total_duration'] / 60
                         print(f"✅ Itinéraire OSRM: {total_km:.1f}km, {total_min:.0f}min")
+                        
+                        # Exclure segment_annotations du payload frontend (trop volumineux)
+                        frontend_route_data = {k: v for k, v in route_data.items() if k != 'segment_annotations'}
                         
                         map_updates.append({
                             'type': 'route',
                             'start': entities['depart'],
                             'end': entities['fin'],
-                            'route_data': route_data
+                            'route_data': frontend_route_data,
+                            'route_buffer': route_buffer
                         })
             except Exception as e:
                 print(f"❌ Erreur trajet: {e}")
@@ -307,6 +351,7 @@ async def chat(message: ChatMessage):
         print(f"{'='*80}\n")
         
         final_message = recalage_message + next_message if recalage_message else next_message
+        chat_state.log_event('bot_message', {'message': final_message})
         
         return ChatResponse(
             message=final_message,
@@ -349,11 +394,19 @@ async def _recalculate_route(map_updates: list):
             
             if route_data:
                 chat_state.set_route_data(route_data)
+                
+                # ✅ AJOUT DU BUFFER ICI AUSSI
+                route_buffer = routing_service.get_route_buffer(route_data['geometry'], 2000)
+                
+                # Exclure segment_annotations du payload frontend
+                frontend_route_data = {k: v for k, v in route_data.items() if k != 'segment_annotations'}
+                
                 map_updates.append({
                     'type': 'route',
                     'start': chat_state.context['start'],
                     'end': chat_state.context['end'],
-                    'route_data': route_data
+                    'route_data': frontend_route_data,
+                    'route_buffer': route_buffer
                 })
     except Exception as e:
         print(f"❌ Erreur recalcul trajet: {e}")
@@ -384,38 +437,61 @@ async def _calculate_and_suggest_position(entities: dict, current_step: int) -> 
     if chat_state.context.get('duration'):
         duration_minutes = chat_state.context['duration']
         
-        position, distance_meters, progress_ratio, pos_updates = await calculate_position_from_duration(
-            duration_minutes, route_data, real_speed_kmh
+        position, distance_meters, progress_ratio, pos_updates, range_result = await calculate_position_from_duration(
+            duration_minutes, real_speed_kmh, route_data
         )
         map_updates.extend(pos_updates)
         
         if position:
-            progress_pct = progress_ratio * 100
+            progress_pct = min(progress_ratio * 100, 100)  # Cap l'affichage à 100%
+            total_km = route_data['total_distance'] / 1000
             
-            if progress_ratio >= 1.0:
-                next_message = "🏁 D'après mes calculs, vous devriez être arrivé(e) à destination. Êtes-vous bien arrivé(e) ou avez-vous rencontré un problème en chemin ?"
-            else:
-                next_message = f"📍 D'après mes calculs, vous devriez être dans cette zone (progression: {progress_pct:.0f}%).\n\n"
+            if range_result:
+                d_min_km = range_result['d_min'] / 1000
+                d_max_km = range_result['d_max'] / 1000
                 
-                # Suggérer des POI
-                poi_message, poi_updates = await suggest_nearby_pois(
-                    position, distance_meters, route_data
-                )
-                next_message += poi_message
-                map_updates.extend(poi_updates)
+                if range_result['d_min'] >= route_data['total_distance']:
+                    # D_min ET D_max dépassent la destination → l'appelant est AU-DELÀ
+                    next_message = (
+                        f"🏁 D'après mes calculs, avec {chat_state.context.get('duration')} min de trajet, "
+                        f"vous devriez avoir **dépassé votre destination** ({total_km:.0f} km).\n\n"
+                        f"📍 Vous êtes probablement dans un rayon de **{range_result['radius']/1000:.1f} km** "
+                        f"autour de la zone d'arrivée.\n\n"
+                    )
+                elif range_result['d_max'] > route_data['total_distance']:
+                    # D_max dépasse mais pas D_min → l'appelant est proche/au-delà de la destination
+                    next_message = (
+                        f"📍 D'après mes calculs, vous devriez être entre le **km {d_min_km:.0f}** "
+                        f"et **au-delà de la destination** (trajet total: {total_km:.0f} km).\n\n"
+                        f"⚠️ Vous avez possiblement dépassé le point d'arrivée.\n\n"
+                    )
+                else:
+                    next_message = f"📍 D'après mes calculs, vous devriez être entre le **km {d_min_km:.0f}** et le **km {d_max_km:.0f}** du trajet (progression: ~{progress_pct:.0f}%).\n\n"
+            else:
+                if progress_ratio >= 1.0:
+                    next_message = "🏁 D'après mes calculs, vous devriez être arrivé(e) à destination. Êtes-vous bien arrivé(e) ou avez-vous rencontré un problème en chemin ?\n\n"
+                else:
+                    next_message = f"📍 D'après mes calculs, vous devriez être dans cette zone (progression: {progress_pct:.0f}%).\n\n"
+                
+            # Suggérer des POI (sur tout l'arc si range_result disponible)
+            poi_message, poi_updates = await suggest_nearby_pois(
+                position, distance_meters, route_data, range_result
+            )
+            next_message += poi_message
+            map_updates.extend(poi_updates)
         else:
             next_message = "Je n'arrive pas à calculer votre position précise. Pouvez-vous me donner plus de détails ?"
     
     elif chat_state.context.get('distance'):
         distance_km = chat_state.context['distance']
-        position, pos_updates = await calculate_position_from_distance(
-            distance_km, route_data, real_speed_kmh
+        position, distance_meters, progress_ratio, pos_updates = await calculate_position_from_distance(
+            distance_km, real_speed_kmh, route_data
         )
         map_updates.extend(pos_updates)
         
         if position:
-            progress_pct = (distance_km * 1000 / total_distance_m) * 100
-            next_message = f"✅ Position trouvée avec {int(CONFIDENCE_HIGH*100)}% confiance ! (progression: {progress_pct:.1f}%)"
+            progress_pct = progress_ratio * 100
+            next_message = f"✅ Position trouvée avec {int(CONFIDENCE_HIGH*100)}% de confiance ! (progression: {progress_pct:.1f}%)"
         else:
             next_message = "Position non trouvée. Plus de détails ?"
     else:
@@ -445,6 +521,24 @@ def _get_missing_transport_or_duration_question() -> str:
 
 
 # ============================================================
+# ENDPOINT: Rapport de session
+# ============================================================
+
+@router.get("/api/report")
+async def generate_report():
+    """Génère et télécharge le rapport de session au format HTML"""
+    try:
+        html = chat_state.generate_report()
+        return Response(
+            content=html,
+            media_type='text/html'
+        )
+    except Exception as e:
+        print(f"❌ Erreur génération rapport: {e}")
+        return Response(content=f"Erreur: {e}", status_code=500)
+
+
+# ============================================================
 # ENDPOINT: Reset
 # ============================================================
 
@@ -454,7 +548,7 @@ async def reset():
     try:
         reset_chat_state()
         return {
-            "message": "Bonjour ! Pour vous localiser, dites-moi d'où vous partez et où vous allez. Par exemple : 'De Paris à Lyon'",
+            "message": "Bonjour ! Je suis **Finder Bot**. Pour vous localiser, dites-moi d'où vous partez et où vous allez. Par exemple : 'De Paris à Lyon'",
             "step": 0
         }
     except Exception as e:
@@ -479,3 +573,109 @@ async def root():
     except Exception as e:
         print(f"❌ Erreur chargement HTML: {e}")
         return {"error": "Impossible de charger l'interface"}
+
+
+# ============================================================
+# ENDPOINTS SYNCHRONISATION FORMULAIRE
+# ============================================================
+
+@router.get("/api/state", response_model=StateResponse)
+async def get_state():
+    """Récupère l'état actuel pour synchroniser le formulaire"""
+    ctx = chat_state.context
+    pos = None
+    if chat_state.coordinates:
+        pos = {"lat": chat_state.coordinates[0], "lon": chat_state.coordinates[1]}
+
+    return StateResponse(
+        start=ctx.get('start'),
+        end=ctx.get('end'),
+        transport=ctx.get('transport'),
+        duration=ctx.get('duration'),
+        confidence=chat_state.confidence,
+        position_estimee=pos
+    )
+
+
+@router.post("/api/update_context", response_model=ChatResponse)
+async def update_context(update: ContextUpdate):
+    """Mise à jour manuelle via le formulaire ou zone de dessin"""
+    try:
+        print(f"\n📝 MISE À JOUR CONTEXTE: {update}")
+
+        # Gérer le dessin manuel en priorité
+        if update.type == 'manual_zone_update':
+            chat_state.context['manual_zone'] = {
+                'lat': update.lat,
+                'lon': update.lon,
+                'radius': update.radius
+            }
+            print(f"📍 Zone manuelle enregistrée: {chat_state.context['manual_zone']}")
+            return ChatResponse(message="Zone manuelle enregistrée", step=update.step)
+            
+        if update.type == 'manual_zone_delete':
+            chat_state.context['manual_zone'] = None
+            print("🗑️ Zone manuelle supprimée")
+            return ChatResponse(message="Zone manuelle supprimée", step=update.step)
+
+        map_updates = []
+        changes = []
+
+        # Détecter les changements pour le message de confirmation
+        if update.start != chat_state.context.get('start'):
+            chat_state.context['start'] = update.start
+            changes.append(f"départ: {update.start}")
+
+        if update.end != chat_state.context.get('end'):
+            chat_state.context['end'] = update.end
+            changes.append(f"arrivée: {update.end}")
+
+        if update.transport != chat_state.context.get('transport'):
+            chat_state.set_transport(update.transport)
+            changes.append(f"transport: {update.transport}")
+            map_updates.append({'type': 'transport', 'transport': update.transport})
+
+        if update.duration != chat_state.context.get('duration'):
+            chat_state.set_duration(update.duration)
+            changes.append(f"durée: {update.duration}min")
+
+        # Recalculer l'itinéraire si besoin
+        if chat_state.has_trajet():
+            # Forcer le recalcul si trajet ou transport a changé
+            await _recalculate_route(map_updates)
+
+        # Calculer la position
+        next_message = ""
+        if chat_state.has_trajet() and chat_state.has_route_data():
+            # On simule des entités vides car on a déjà mis à jour le state
+            next_message, pos_map_updates = await _calculate_and_suggest_position(update.step, {})
+            map_updates.extend(pos_map_updates)
+        else:
+            next_message = _get_missing_info_question()
+
+        # Message de confirmation
+        if changes:
+            confirm_msg = f"🔄 **Informations mises à jour via le formulaire :** {', '.join(changes)}.\n\n"
+            chat_state.log_event('form_update', {'fields': {
+                'départ': update.start, 'arrivée': update.end,
+                'transport': update.transport, 'durée': f'{update.duration}min' if update.duration else None
+            }})
+        else:
+            confirm_msg = "🔄 **Formulaire appliqué (aucune modification détectée).**\n\n"
+
+        return ChatResponse(
+            message=confirm_msg + next_message,
+            step=update.step + 1,
+            entities=None,
+            map_updates=map_updates if map_updates else None
+        )
+
+    except Exception as e:
+        print(f"❌ Erreur update_context: {e}")
+        traceback.print_exc()
+        return ChatResponse(
+            message="Une erreur s'est produite lors de la mise à jour du formulaire.",
+            step=update.step,
+            entities=None,
+            map_updates=None
+        )

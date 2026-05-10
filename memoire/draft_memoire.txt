@@ -1,0 +1,87 @@
+# Master Thesis Draft
+# Title: Intelligent Geolocation Assistant for Emergency Medical Services (HéliSMUR)
+# Master 2 Data Science en Santé (2025-2026)
+
+[TOC]
+
+---
+
+# Abstract / Résumé
+[To be written at the very end of the project]
+- English Abstract (max half a page)
+- French Résumé (max half a page)
+- Key-words / Mots-clés: Geolocation, Natural Language Processing, Emergency Medical Services, OpenStreetMap, Chatbot.
+
+---
+
+# 1. INTRODUCTION
+
+The pre-hospital emergency system in France relies on a coordinated organization involving the SAMU (Service d'Aide Médicale d'Urgence) for medical regulation and the SMUR (Service Mobile d'Urgence et de Réanimation) for primary interventions. In critical situations where time is of the essence, or in hard-to-reach areas, helicopter-borne SMUR (HéliSMUR) teams are deployed to ensure rapid victim stabilization and transport. The HéliSMUR registry project aims to optimize these airborne missions by providing advanced decision-support tools. 
+
+One of the major challenges faced by SAMU regulation assistants (ARM - Assistants de Régulation Médicale) is the precise geolocation of victims. In emergency situations, callers are often panicked and may provide approximate or vague descriptions of their surroundings. While technologies like Advanced Mobile Location (AML) or cell tower triangulation exist, they present limitations: AML is not yet universally reliable in all regions, and GPS requires an active smartphone and caller cooperation. An inaccurate location can severely delay the arrival of rescue teams, leading to fatal consequences.
+
+To address these limitations, this research proposes a hybrid approach combining automated technologies with guided human interaction. The objective of this thesis is to develop and evaluate "Finder Bot", an intelligent geolocation assistant designed to assist ARMs. Unlike classic purely conversational approaches, Finder Bot features a hybrid interface integrating an intelligent chatbot, a rapid-entry form for the ARM, and interactive map visualization. By leveraging Natural Language Processing (NLP) to analyze environmental descriptions in real-time and cross-referencing these entities with an exhaustive local geographic database (extracted from OpenStreetMap), the system aims to accurately pinpoint the victim's location. This approach seeks to reduce the ARM's cognitive load while increasing the speed of location identification.
+
+---
+
+# 2. MATERIAL AND METHODS
+
+## 2.1. Data / Source of data
+The system relies on a local data infrastructure to ensure maximum responsiveness and independence from third-party APIs:
+- **Local POI Database (SQLite):** An exhaustive database containing over 8 million points of interest (POIs) and visual landmarks across France, extracted directly from an OpenStreetMap PBF file using a custom ingestion script powered by the `osmium` library. This database uses WAL (Write-Ahead Logging) mode to allow simultaneous reads and integrates spatial indexing via coordinates along with textual indexing on landmark names.
+- **OpenStreetMap (OSM):** Serves as the source database for local ingestion (shops, buildings, industrial structures, natural landmarks, and milestones).
+- **Nominatim Geocoding API:** Used selectively as a proxy for initial resolution of departure and arrival cities.
+- **Routing Data (OSRM):** The Open Source Routing Machine is used to calculate the theoretical route upon which the victim is projected based on elapsed time.
+- **Fuzzy Matching & Spatial Indexing:** A fuzzy textual search combined with bounding-box coordinate indexing allows for landmark retrieval even if the caller's description is approximate or incomplete.
+
+[TO DO: Describe the dataset that will be used to TEST the application. Are we using simulated emergency calls? Historical transcripts? A custom-made test dataset?]
+
+## 2.2. Study Design
+This is an experimental study focusing on the design, development, and evaluation of a proof-of-concept (PoC) geolocation algorithm. The study evaluates the algorithm's ability to accurately estimate a user's position based solely on their textual description of their journey and surroundings.
+
+## 2.3. System Architecture and Interface
+"Finder Bot" is based on a modular architecture and a hybrid user interface optimized for emergency centers (SAMU):
+1. **Hybrid Interface (3-Column Dashboard):** The interface is structured to minimize the ARM's cognitive load:
+   - A structured input form for critical data (Departure, Arrival, Transport, Elapsed Time, Road Type).
+   - An intelligent Chatbot for natural language interaction, capable of asking clarifying questions.
+   - An interactive map (Leaflet) synchronized in real-time, displaying the route, confidence zone, and numbered visual landmarks.
+2. **Bi-directional Entity Extraction (NLP):** A Large Language Model (local LLM via Ollama, GPT model) extracts entities from the chat to automatically fill the form. Conversely, any manual modification of the form updates the bot's state and triggers a new position calculation.
+3. **Robust Refinement Engine:** The core geographic logic involves several levels of precision:
+   - *Route Refinement:* Projects the estimated travel time onto an OSRM route to find an initial coordinate on the road axis.
+   - *Landmark Refinement:* Validates user-mentioned landmarks through a Fuzzy Matching search in the local database, with strict geographic validation of proximity to the route (< 500m) to avoid false positives.
+   - *Doubt Clearance by POIs:* Suggests specific landmarks identified on the route (e.g., "Do you see the water tower to your right?") to lock the position.
+
+## 2.4. Statistical Analyses and Evaluation Metrics
+[TO DO: Define how we will measure success. For example: 
+- Accuracy: Distance in meters between the predicted location and the actual true location.
+- Time reduction: Comparison of the time taken to geolocate using the bot versus manual map searching.
+- System usability scale or success rate on a set of test scenarios.]
+
+---
+
+# 3. RESULTS
+[To be written once the experiments and evaluations are conducted. Will contain tables of accuracy, maps showing predicted vs actual locations, and performance metrics.]
+
+---
+
+# 4. DISCUSSION
+[To be written. Will discuss the limitations of the NLP model (e.g., handling panic speech, ambiguous descriptions), the limits of OSM data in very rural areas, and compare the results with the current AML approach mentioned in Service Public.]
+
+---
+
+# 5. CONCLUSION
+[To be written at the end. Summary of achievements and future perspectives for full integration into HéliSMUR.]
+
+---
+
+# 6. BIBLIOGRAPHY
+*(Following Vancouver formatting style)*
+
+1. Direction de l'information légale et administrative (Premier ministre). Disparition d'un enfant mineur [Internet]. Service-public.fr. [cited 202X]. Available from: https://www.service-public.gouv.fr/particuliers/vosdroits/F10385
+2. [Author(s) of the PDF]. A Pragmatic Approach to Applied Search Theory [Internet]. [cited 202X]. Available from: https://csdk9.org/wp-content/uploads/A-Pragmatic-Approach-to-Applied-Search-Theory.pdf
+3. [Add references about NLP in healthcare, OpenStreetMap validity, OSRM, etc.]
+
+---
+
+# ANNEXES
+[To be added if necessary: Code snippets, full prompt templates used for the LLM, large test scenario tables.]

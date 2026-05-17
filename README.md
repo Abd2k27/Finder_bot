@@ -1,5 +1,47 @@
-# Finder_bot
+# Finder Bot — Assistant de géolocalisation SAMU
 
+**Finder Bot** est un outil intelligent d'aide à la localisation pour les Assistants de Régulation Médicale (ARM) dans le cadre du projet **HéliSMUR**.
+
+Il permet de transformer les descriptions orales de trajets et d'environnement fournies par les appelants (au 15) en coordonnées géographiques précises grâce à une approche hybride (Chat + Formulaire) et une base de données locale exhaustive.
+
+## 🚀 Fonctionnalités Clés
+
+- **Interface Hybride** : Saisie structurée par formulaire synchronisée avec un chatbot NLP.
+- **Orchestration Agentique** : Analyse automatique des intentions et extraction d'entités (LLM local).
+- **Base de Données Locale** : Plus de 12 millions de points d'intérêt (POI) français extraits d'OpenStreetMap via un pipeline d'ingestion hybride (ingest_osm + ingest_complement), accessibles sans internet.
+- **Moteur de Triangulation** : Croisement du trajet (OSRM), du temps de parcours et des repères visuels réels (Fuzzy Matching).
+- **Validation Spatiale** : Filtrage automatique des faux positifs via la proximité à l'itinéraire.
+
+## 🛠️ Installation
+
+1. **Environnement** :
+   ```bash
+   pip install -r requirements.txt
+   pip install osmium osmnx
+   ```
+
+2. **Données** :
+   - Placer le fichier `france-latest.osm.pbf` dans le dossier `data/`.
+   - Lancer l'ingestion de la base locale :
+     ```bash
+     python scripts/ingest_osm.py
+     ```
+
+3. **Lancement** :
+   ```bash
+   python main.py
+   ```
+
+## 📂 Structure du projet
+
+- `/api` : Orchestrateur et gestionnaires d'actions.
+- `/models` : État de la conversation et extraction NLP.
+- `/services` : Moteurs de géocodage et de routage.
+- `/static` : Interface utilisateur (HTML/CSS/JS).
+- `/data` : Base SQLite locale et données source OSM.
+- `/memoire` : Brouillons et rapports du mémoire M2 DSS.
+
+---
 
   Contrairement à un RAG classique qui interroge une base de données vectorielle de documents, ce projet utilise une approche hybride pour
   la géolocalisation :
@@ -21,6 +63,3 @@
   3. Raisonnement Agentique
   Le système utilise également le LLM comme un agent décisionnel (decide_action) qui, en fonction des POI récupérés et de l'état de la
   conversation, choisit la prochaine étape (recalage, confirmation, demande de précision).
-
-  C'est ce que tes documents de recherche (memoire/draft_memoire_fr.txt) appellent le "Raisonnement Spatial Assisté par la Génération",
-  validant l'utilisation du LLM comme extracteur et du moteur spatial comme source de vérité déterministe.
